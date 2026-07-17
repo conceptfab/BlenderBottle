@@ -6,6 +6,8 @@ __pycache__/
 *.blend1
 *.blend2
 *_bak_*.blend
+*.blend.bak_*
+*.bak_*
 
 # OS cruft
 .DS_Store
