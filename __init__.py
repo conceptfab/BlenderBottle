@@ -21,7 +21,6 @@ import os
 import shutil
 import pathlib
 import json
-import webbrowser
 import functools as ft
 import sys
 import subprocess
@@ -169,11 +168,6 @@ def prepare_bottle_world_pose(context, obj__):
     if obj__.parent is not None:
         bake_parent_transforms(context, obj__)
     return True, ''
-
-## WEB -------------
-
-def open_webpage(url):
-    webbrowser.open(url)
 
 ## PIP -----------------
 
@@ -643,7 +637,6 @@ FPATHS['addon_root'] = pathlib.Path(
 
 FPATHS['data_root'] = FPATHS['addon_root'] / 'data'
 
-FPATHS['urls'] = FPATHS['data_root'] / 'urls.json'
 FPATHS['blendfs_root'] = FPATHS['data_root'] / 'blendfs'
 FPATHS['blend_assets'] = FPATHS['blendfs_root'] / 'LiquidFeel_MASTER.blend'
 
@@ -6145,10 +6138,6 @@ for tab in INPUT_FIELD_DATA__PRESERVING_ORDER:
 # pprint(SHADING_INPUT_FIELD_DATA_BY_SORTING_TAG)
 # print()
 
-## URL ----------
-
-with open(str(FPATHS['urls']), 'r') as f:
-    URLS = json.load(f)
 
 ## ANIMATION ----------
 
@@ -12837,30 +12826,6 @@ class UpdateRenderView(bpy.types.Operator):
         update_render_view(context)
         return {'FINISHED'}
 registerable_classes.append(UpdateRenderView)
-
-class LaunchFeedbackForm(bpy.types.Operator):
-    bl_idname = 'liquifeel.launch_feedback_form'
-    bl_label = 'Launch Feedback Form'
-    def execute(self, context):
-        open_webpage(URLS['feedback'])
-        return {'FINISHED'}
-registerable_classes.append(LaunchFeedbackForm)
-
-class LaunchGallery(bpy.types.Operator):
-    bl_idname = 'liquifeel.launch_gallery'
-    bl_label = 'Launch Gallery'
-    def execute(self, context):
-        open_webpage(URLS['gallery'])
-        return {'FINISHED'}
-registerable_classes.append(LaunchGallery)
-
-class LaunchGuide(bpy.types.Operator):
-    bl_idname = 'liquifeel.launch_guide'
-    bl_label = 'Launch Guide'
-    def execute(self, context):
-        open_webpage(URLS['guide'])
-        return {'FINISHED'}
-registerable_classes.append(LaunchGuide)
 
 class CycleTabs(bpy.types.Operator):
     bl_idname = 'liquifeel.cycle_tabs'
