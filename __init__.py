@@ -8374,7 +8374,11 @@ def apply_assembly_hide_state(context, hidden):
         pass
     return n
 
+_hide_extras_applying = False  # guard so a manual apply doesn't double-fire
+
 def assembly_hide_extras_update(self, context):
+    if _hide_extras_applying:
+        return
     apply_assembly_hide_state(context, bool(self.assembly_hide_extras))
 
 def apply_assembly_hide_extras_if_enabled(context, controller, member=None):
@@ -8600,6 +8604,37 @@ def _assembly_part_poll(self, obj):
         return False
     return obj.type in {'MESH', 'EMPTY', 'CURVE', 'FONT'}
 
+_pending_bottle_bake = set()  # object names awaiting a deferred pose bake
+
+
+def _flush_bottle_bake_timer():
+    global _pending_bottle_bake
+    context = bpy.context
+    names = list(_pending_bottle_bake)
+    _pending_bottle_bake.clear()
+    for name in names:
+        bottle = bpy.data.objects.get(name)
+        if bottle is None or bottle.type != 'MESH' or is_liquid_proxy_object(bottle):
+            continue
+        try:
+            ok, err = prepare_bottle_world_pose(context, bottle)
+            if not ok:
+                print(f'LIQUIFEEL: bottle pose bake: {err}')
+                continue
+            ensure_assembly_controller(bottle)
+            context.scene[SCENE_ASSEMBLY_BOTTLE_KEY] = bottle.name
+            sync_assembly_ui_slots(context, bottle)
+        except Exception as exc:
+            print(f'LIQUIFEEL: bottle pose bake: {exc}')
+    return None
+
+
+def schedule_bottle_pose_bake(bottle):
+    _pending_bottle_bake.add(bottle.name)
+    if not bpy.app.timers.is_registered(_flush_bottle_bake_timer):
+        bpy.app.timers.register(_flush_bottle_bake_timer, first_interval=0.0)
+
+
 def assembly_bottle_pointer_update(self, context):
     global _assembly_ui_lock
     if _assembly_ui_lock:
@@ -8609,16 +8644,9 @@ def assembly_bottle_pointer_update(self, context):
         return
     if bottle.type != 'MESH' or is_liquid_proxy_object(bottle):
         return
-    try:
-        ok, err = prepare_bottle_world_pose(context, bottle)
-        if not ok:
-            print(f'LIQUIFEEL: assembly_bottle_pointer_update: {err}')
-            return
-        ensure_assembly_controller(bottle)
-        context.scene[SCENE_ASSEMBLY_BOTTLE_KEY] = bottle.name
-        sync_assembly_ui_slots(context, bottle)
-    except Exception as exc:
-        print(f'LIQUIFEEL: assembly_bottle_pointer_update: {exc}')
+    # Operators (make_single_user / transform_apply) must not run inside an RNA
+    # update — defer to a one-shot timer, mirroring schedule_separate_refresh.
+    schedule_bottle_pose_bake(bottle)
 
 def assembly_part_pointer_update(self, context):
     """When user drops/picks an object into a slot — parent it to the bottle."""
@@ -8970,7 +8998,7 @@ def _separate_poll_timer():
             any_active = True
             if maintain:
                 sig = _separate_liquid_signature(obj__)
-                ptr = obj__.as_pointer()
+                ptr = obj__.name
                 liquid = find_separate_liquid_object(obj__)
                 if (liquid is not None
                         and len(liquid.data.vertices) > 0
@@ -9015,7 +9043,7 @@ def promote_separate_liquid_object(context, src):
         marker = dict(marker)
         marker.pop('separate_liquid', None)
         _lqfl_marker_set(src, marker)
-    _separate_objects_last_sig.pop(src.as_pointer(), None)
+    _separate_objects_last_sig.pop(src.name, None)
     liquid.hide_set(False)
     liquid.hide_viewport = False
     liquid.hide_render = False
@@ -9065,7 +9093,7 @@ def teardown_separate_liquid_object(context, src):
         marker = dict(marker)
         marker.pop('separate_liquid', None)
         _lqfl_marker_set(src, marker)
-    _separate_objects_last_sig.pop(src.as_pointer(), None)
+    _separate_objects_last_sig.pop(src.name, None)
     if is_obj_filled(src):
         try:
             fill_mod = get_geonodes_mod_by_ng_name(src, FILL_NG_NAME)
@@ -9213,7 +9241,13 @@ def _unregister_separate_timers():
         bpy.app.timers.unregister(_flush_separate_refresh_timer)
     if bpy.app.timers.is_registered(_separate_poll_timer):
         bpy.app.timers.unregister(_separate_poll_timer)
+    if bpy.app.timers.is_registered(_flush_bottle_bake_timer):
+        bpy.app.timers.unregister(_flush_bottle_bake_timer)
+    if bpy.app.timers.is_registered(_assembly_seed_drop_slots_timer):
+        bpy.app.timers.unregister(_assembly_seed_drop_slots_timer)
     _pending_separate_refresh.clear()
+    _pending_bottle_bake.clear()
+    _separate_objects_last_sig.clear()
 
 # # key_chain: ['liquifeel_input_field_props', 'geometry', 'manual']
 # # path: liquifeel_input_field_props.geometry.manual
@@ -12404,8 +12438,14 @@ class AssemblyToggleHideExtras(bpy.types.Operator):
     def execute(self, context):
         controls = context.scene.liquifeel_general_controls
         new_state = not bool(controls.assembly_hide_extras)
-        # Write flag; update callback also applies, then we apply again for certainty
-        controls.assembly_hide_extras = new_state
+        # Write flag with the callback's apply suppressed, then apply exactly
+        # once here (its return is the count used for the report below).
+        global _hide_extras_applying
+        _hide_extras_applying = True
+        try:
+            controls.assembly_hide_extras = new_state
+        finally:
+            _hide_extras_applying = False
         n = apply_assembly_hide_state(context, new_state)
         if new_state:
             if n == 0:
