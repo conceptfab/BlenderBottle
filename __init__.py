@@ -126,6 +126,12 @@ def bake_parent_transforms(context, obj__):
     scale (e.g. 0.1), the liquid proxy inherits the bottle's scale, and
     transform_apply does not compensate child matrix_parent_inverse -- applying
     scale would resize the liquid and drag cork/label off the bottle.
+
+    Note: child restore via matrix_world is exact for uniform object scale (the
+    normal case). Non-uniform scale combined with a baked rotation can introduce
+    shear that a loc/rot/scale decomposition cannot represent; such children may
+    still distort. A fully general fix would recompute each child's
+    matrix_parent_inverse.
     """
     select_and_set_active(context, obj__, deselect_all=True)
     bpy.ops.object.make_single_user(object=True, obdata=True, material=True)
@@ -136,6 +142,9 @@ def bake_parent_transforms(context, obj__):
     # child matrix_parent_inverse, so children would otherwise drift.
     child_world = {child: child.matrix_world.copy() for child in obj__.children}
     bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
+    # Flush the depsgraph so the child restore reads the parent's freshly
+    # evaluated matrix (child.matrix_world depends on it).
+    context.view_layer.update()
     for child, mw in child_world.items():
         child.matrix_world = mw
 
