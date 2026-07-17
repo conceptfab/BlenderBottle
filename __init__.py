@@ -118,6 +118,60 @@ def _xform_diag_round_vec(v, nd=6):
     return [round(float(c), nd) for c in v]
 
 
+def _xform_diag_euler_deg(euler):
+    """Euler angles in degrees for human-readable diagnostics."""
+    import math as _math
+    return [round(_math.degrees(float(a)), 3) for a in euler]
+
+
+def _xform_diag_orientation(obj__):
+    """Local + world rotation and which local/world axis looks 'tallest'."""
+    _, rot_q, _ = obj__.matrix_world.decompose()
+    world_euler = rot_q.to_euler('XYZ')
+    dims = tuple(float(v) for v in obj__.dimensions)
+    axis_names = ('X', 'Y', 'Z')
+    tallest_local = axis_names[max(range(3), key=lambda i: dims[i])]
+    # World-space AABB size from the eight bound_box corners — shows how the
+    # bottle actually stands in the scene after rotation (vertical vs pancake).
+    world_extents = [0.0, 0.0, 0.0]
+    try:
+        corners = [obj__.matrix_world @ mathutils.Vector(c)
+                   for c in obj__.bound_box]
+        xs = [c.x for c in corners]
+        ys = [c.y for c in corners]
+        zs = [c.z for c in corners]
+        world_extents = [
+            max(xs) - min(xs),
+            max(ys) - min(ys),
+            max(zs) - min(zs),
+        ]
+        tallest_world = axis_names[
+            max(range(3), key=lambda i: world_extents[i])]
+    except Exception:
+        tallest_world = '?'
+        world_extents = [0.0, 0.0, 0.0]
+    # Object +Z axis direction in world — for a vertical bottle this should
+    # point roughly up (world +Z).
+    try:
+        local_up = (obj__.matrix_world.to_3x3()
+                    @ mathutils.Vector((0.0, 0.0, 1.0))).normalized()
+        up_dot_world_z = round(float(local_up.z), 4)
+    except Exception:
+        local_up = mathutils.Vector((0.0, 0.0, 1.0))
+        up_dot_world_z = 1.0
+    return {
+        'rotation_mode': str(obj__.rotation_mode),
+        'local_euler_deg': _xform_diag_euler_deg(obj__.rotation_euler),
+        'world_euler_deg': _xform_diag_euler_deg(world_euler),
+        'dimensions_local': _xform_diag_round_vec(dims, 4),
+        'dimensions_world_aabb': _xform_diag_round_vec(world_extents, 4),
+        'tallest_local_axis': tallest_local,
+        'tallest_world_axis': tallest_world,
+        'local_z_dot_world_z': up_dot_world_z,
+        'local_z_world_dir': _xform_diag_round_vec(local_up, 4),
+    }
+
+
 def _xform_diag_mpi_is_identity(obj__, eps=1e-5):
     try:
         mpi = obj__.matrix_parent_inverse
@@ -140,6 +194,7 @@ def _xform_diag_capture(context, obj__):
     except Exception:
         pass
     _, _, world_scale = obj__.matrix_world.decompose()
+    orient = _xform_diag_orientation(obj__)
     chain = []
     _p = obj__.parent
     while _p is not None:
@@ -147,10 +202,17 @@ def _xform_diag_capture(context, obj__):
         _p = _p.parent
     children = []
     for child in list(obj__.children)[:_XFORM_DIAG_MAX_CHILDREN]:
+        try:
+            _, cq, _ = child.matrix_world.decompose()
+            child_world_euler = _xform_diag_euler_deg(cq.to_euler('XYZ'))
+        except Exception:
+            child_world_euler = [0.0, 0.0, 0.0]
         children.append({
             'name': child.name,
             'world_loc': _xform_diag_round_vec(child.matrix_world.translation),
             'local_scale': _xform_diag_round_vec(child.scale, 4),
+            'local_euler_deg': _xform_diag_euler_deg(child.rotation_euler),
+            'world_euler_deg': child_world_euler,
             'mpi_identity': _xform_diag_mpi_is_identity(child),
         })
     try:
@@ -161,6 +223,15 @@ def _xform_diag_capture(context, obj__):
         'name': obj__.name,
         'local_scale': _xform_diag_round_vec(obj__.scale, 4),
         'world_scale': _xform_diag_round_vec(world_scale, 4),
+        'rotation_mode': orient['rotation_mode'],
+        'local_euler_deg': orient['local_euler_deg'],
+        'world_euler_deg': orient['world_euler_deg'],
+        'dimensions_local': orient['dimensions_local'],
+        'dimensions_world_aabb': orient['dimensions_world_aabb'],
+        'tallest_local_axis': orient['tallest_local_axis'],
+        'tallest_world_axis': orient['tallest_world_axis'],
+        'local_z_dot_world_z': orient['local_z_dot_world_z'],
+        'local_z_world_dir': orient['local_z_world_dir'],
         'parent': (obj__.parent.name if obj__.parent else None),
         'parent_chain': list(chain),
         'mpi_is_identity': _xform_diag_mpi_is_identity(obj__),
@@ -236,6 +307,22 @@ def _xform_diag_record(context, obj__, op, before, after):
             if snap.get('mpi_is_identity') is False:
                 if 'MPI_NOT_IDENTITY' not in warnings:
                     warnings.append('MPI_NOT_IDENTITY')
+            try:
+                if abs(float(snap.get('local_z_dot_world_z', 1.0))) < 0.5:
+                    if 'SIDEWAYS_ORIENTATION' not in warnings:
+                        warnings.append('SIDEWAYS_ORIENTATION')
+            except Exception:
+                pass
+            dims = snap.get('dimensions_local') or []
+            try:
+                if len(dims) == 3:
+                    dmax = max(float(v) for v in dims)
+                    dmin = min(float(v) for v in dims)
+                    if dmax > 1e-8 and (dmin / dmax) < 0.05:
+                        if 'FLAT_LOCAL_BOUNDS' not in warnings:
+                            warnings.append('FLAT_LOCAL_BOUNDS')
+            except Exception:
+                pass
 
         event = _xform_diag_as_plain({
             'op': op,
@@ -12905,16 +12992,37 @@ def build_liquifeel_diagnostics(context):
         # world dimensions, and non-uniform/non-unit warnings — the geometry
         # the fill nodes actually operate on.
         _, _, world_scale = obj__.matrix_world.decompose()
+        orient = _xform_diag_orientation(obj__)
         nonuniform = (max(world_scale) - min(world_scale)) > 1e-4
         obj_warn = ''
         if nonuniform:
             obj_warn += '  <-- NON-UNIFORM SCALE (fill may shear/distort)'
         if any(abs(v - 1.0) > 1e-3 for v in world_scale):
             obj_warn += '  <-- NON-UNIT WORLD SCALE (fill/liquid may be mis-sized)'
+        dims_local = orient['dimensions_local']
+        try:
+            dmax = max(dims_local)
+            dmin = min(dims_local)
+            if dmax > 1e-8 and (dmin / dmax) < 0.05:
+                obj_warn += '  <-- FLAT LOCAL BOUNDS (mesh thin on one axis)'
+        except Exception:
+            pass
+        if abs(float(orient['local_z_dot_world_z'])) < 0.5:
+            obj_warn += '  <-- SIDEWAYS (local +Z not aligned with world +Z)'
         lines.append(
             f"Object scale: local={tuple(round(v, 4) for v in obj__.scale)} "
             f"world={tuple(round(v, 4) for v in world_scale)} "
-            f"dimensions={tuple(round(v, 4) for v in obj__.dimensions)}{obj_warn}")
+            f"dimensions_local={tuple(dims_local)} "
+            f"dimensions_world_aabb="
+            f"{tuple(orient['dimensions_world_aabb'])}{obj_warn}")
+        lines.append(
+            f"Object orientation: mode={orient['rotation_mode']} "
+            f"local_euler_deg={tuple(orient['local_euler_deg'])} "
+            f"world_euler_deg={tuple(orient['world_euler_deg'])} "
+            f"tallest_local={orient['tallest_local_axis']} "
+            f"tallest_world={orient['tallest_world_axis']} "
+            f"local_z_dot_world_z={orient['local_z_dot_world_z']} "
+            f"local_z_world_dir={tuple(orient['local_z_world_dir'])}")
         chain = []
         _p = obj__.parent
         while _p is not None:
@@ -12926,13 +13034,17 @@ def build_liquifeel_diagnostics(context):
         child_lines = []
         for child in obj__.children:
             try:
-                _, _, cws = child.matrix_world.decompose()
+                _, cq, cws = child.matrix_world.decompose()
                 mpi_ok = _xform_diag_mpi_is_identity(child)
                 child_lines.append(
                     f"  '{child.name}' world_loc="
                     f"{tuple(round(v, 4) for v in child.matrix_world.translation)} "
                     f"local_scale={tuple(round(v, 4) for v in child.scale)} "
                     f"world_scale={tuple(round(v, 4) for v in cws)} "
+                    f"local_euler_deg="
+                    f"{tuple(_xform_diag_euler_deg(child.rotation_euler))} "
+                    f"world_euler_deg="
+                    f"{tuple(_xform_diag_euler_deg(cq.to_euler('XYZ')))} "
                     f"mpi_identity={mpi_ok}")
             except Exception as e:
                 child_lines.append(f"  '{child.name}': <err:{e}>")
@@ -12969,11 +13081,27 @@ def build_liquifeel_diagnostics(context):
             lines.append(
                 f"  before: local_scale={before.get('local_scale')} "
                 f"world_scale={before.get('world_scale')} "
+                f"local_euler_deg={before.get('local_euler_deg')} "
+                f"world_euler_deg={before.get('world_euler_deg')} "
+                f"dims_local={before.get('dimensions_local')} "
+                f"dims_world={before.get('dimensions_world_aabb')} "
+                f"tallest_local/world="
+                f"{before.get('tallest_local_axis')}/"
+                f"{before.get('tallest_world_axis')} "
+                f"local_z_dot_world_z={before.get('local_z_dot_world_z')} "
                 f"parent={before.get('parent')!r} "
                 f"parent_chain={before.get('parent_chain')}")
             lines.append(
                 f"  after:  local_scale={after.get('local_scale')} "
                 f"world_scale={after.get('world_scale')} "
+                f"local_euler_deg={after.get('local_euler_deg')} "
+                f"world_euler_deg={after.get('world_euler_deg')} "
+                f"dims_local={after.get('dimensions_local')} "
+                f"dims_world={after.get('dimensions_world_aabb')} "
+                f"tallest_local/world="
+                f"{after.get('tallest_local_axis')}/"
+                f"{after.get('tallest_world_axis')} "
+                f"local_z_dot_world_z={after.get('local_z_dot_world_z')} "
                 f"parent={after.get('parent')!r} "
                 f"parent_chain={after.get('parent_chain')}")
             if after.get('liquid') or before.get('liquid'):

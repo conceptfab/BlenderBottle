@@ -224,8 +224,10 @@ def main():
             fail('diagnostics report missing Last transform event')
         elif 'Children (live):' not in report:
             fail('diagnostics report missing Children (live)')
+        elif 'Object orientation:' not in report:
+            fail('diagnostics report missing Object orientation')
         else:
-            ok('diagnostics report includes Children + Last transform event')
+            ok('diagnostics report includes orientation + Children + Last transform')
 
     marker = dict(mod._lqfl_marker_get(bottle))
     marker['filled'] = True
