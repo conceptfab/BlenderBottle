@@ -203,6 +203,30 @@ def main():
     else:
         ok('Cork world position preserved through bake')
 
+    # Silent xform diagnostics last-event (Copy Diagnostics source).
+    xkey = mod.XFORM_DIAG_KEY
+    if xkey not in scaled.keys():
+        fail(f'Missing {xkey} after bake_parent_transforms')
+    else:
+        raw = scaled[xkey]
+        xdiag = raw.to_dict() if hasattr(raw, 'to_dict') else dict(raw)
+        if xdiag.get('op') != 'bake_parent_transforms':
+            fail(f"xform diag op={xdiag.get('op')!r} "
+                 f"(expected 'bake_parent_transforms')")
+        elif float(xdiag.get('max_child_drift') or 0.0) > 1e-3:
+            fail(f"xform diag max_child_drift="
+                 f"{xdiag.get('max_child_drift')} (expected <= 1e-3)")
+        else:
+            ok('xform diag last-event recorded on bake')
+        bpy.context.view_layer.objects.active = scaled
+        report = mod.build_liquifeel_diagnostics(bpy.context)
+        if 'Last transform event:' not in report:
+            fail('diagnostics report missing Last transform event')
+        elif 'Children (live):' not in report:
+            fail('diagnostics report missing Children (live)')
+        else:
+            ok('diagnostics report includes Children + Last transform event')
+
     marker = dict(mod._lqfl_marker_get(bottle))
     marker['filled'] = True
     marker['separate_liquid'] = 'dummy'

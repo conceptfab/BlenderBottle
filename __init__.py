@@ -107,7 +107,160 @@ def parse_json_string(json_string):
     data = json.loads(json_string)
     return data
 
+# Silent last-event transform diagnostics for Copy Diagnostics (not the
+# liquifeel marker — sanitize/strip must not wipe this).
+XFORM_DIAG_KEY = 'liquifeel_xform_diag'
+_XFORM_DIAG_MAX_CHILDREN = 24
+_XFORM_DIAG_DRIFT_EPS = 1e-3
+
+
+def _xform_diag_round_vec(v, nd=6):
+    return [round(float(c), nd) for c in v]
+
+
+def _xform_diag_mpi_is_identity(obj__, eps=1e-5):
+    try:
+        mpi = obj__.matrix_parent_inverse
+        ident = mathutils.Matrix.Identity(4)
+        for i in range(4):
+            for j in range(4):
+                if abs(mpi[i][j] - ident[i][j]) > eps:
+                    return False
+        return True
+    except Exception:
+        return True
+
+
+def _xform_diag_capture(context, obj__):
+    """Compact transform snapshot for silent before/after diagnostics."""
+    if obj__ is None:
+        return {}
+    try:
+        context.view_layer.update()
+    except Exception:
+        pass
+    _, _, world_scale = obj__.matrix_world.decompose()
+    chain = []
+    _p = obj__.parent
+    while _p is not None:
+        chain.append(f"{_p.name}{tuple(round(v, 3) for v in _p.scale)}")
+        _p = _p.parent
+    children = []
+    for child in list(obj__.children)[:_XFORM_DIAG_MAX_CHILDREN]:
+        children.append({
+            'name': child.name,
+            'world_loc': _xform_diag_round_vec(child.matrix_world.translation),
+            'local_scale': _xform_diag_round_vec(child.scale, 4),
+            'mpi_identity': _xform_diag_mpi_is_identity(child),
+        })
+    try:
+        scene_scale_length = float(context.scene.unit_settings.scale_length)
+    except Exception:
+        scene_scale_length = 1.0
+    return {
+        'name': obj__.name,
+        'local_scale': _xform_diag_round_vec(obj__.scale, 4),
+        'world_scale': _xform_diag_round_vec(world_scale, 4),
+        'parent': (obj__.parent.name if obj__.parent else None),
+        'parent_chain': list(chain),
+        'mpi_is_identity': _xform_diag_mpi_is_identity(obj__),
+        'children': children,
+        'scene_scale_length': round(scene_scale_length, 6),
+    }
+
+
+def _xform_diag_as_plain(data):
+    """Ensure nested structures are IDProperty-safe plain Python."""
+    if isinstance(data, dict):
+        return {str(k): _xform_diag_as_plain(v) for k, v in data.items()}
+    if isinstance(data, (list, tuple)):
+        return [_xform_diag_as_plain(v) for v in data]
+    if isinstance(data, bool):
+        return data
+    if isinstance(data, (int, float)):
+        return data
+    if data is None:
+        return ''
+    return str(data)
+
+
+def _xform_diag_record(context, obj__, op, before, after):
+    """Store one last-event transform diag on the object (never raises)."""
+    if obj__ is None:
+        return
+    try:
+        before_children = {
+            c.get('name'): c for c in (before or {}).get('children', [])
+            if isinstance(c, dict) and c.get('name')
+        }
+        after_children = {
+            c.get('name'): c for c in (after or {}).get('children', [])
+            if isinstance(c, dict) and c.get('name')
+        }
+        child_drifts = []
+        max_drift = 0.0
+        for name, ac in after_children.items():
+            bc = before_children.get(name)
+            if bc is None:
+                continue
+            bloc = bc.get('world_loc') or [0.0, 0.0, 0.0]
+            aloc = ac.get('world_loc') or [0.0, 0.0, 0.0]
+            drift = sum((float(a) - float(b)) ** 2
+                        for a, b in zip(aloc, bloc)) ** 0.5
+            if drift > max_drift:
+                max_drift = drift
+            if drift > _XFORM_DIAG_DRIFT_EPS:
+                child_drifts.append({
+                    'name': name,
+                    'drift': round(drift, 6),
+                    'world_loc_before': list(bloc),
+                    'world_loc_after': list(aloc),
+                })
+
+        warnings = []
+        if child_drifts:
+            warnings.append('CHILD_DRIFT')
+        for snap in (before, after):
+            if not snap:
+                continue
+            ws = snap.get('world_scale') or [1.0, 1.0, 1.0]
+            if any(abs(float(v) - 1.0) > 1e-3 for v in ws):
+                if 'NON_UNIT_WORLD_SCALE' not in warnings:
+                    warnings.append('NON_UNIT_WORLD_SCALE')
+            if (max(float(v) for v in ws) - min(float(v) for v in ws)) > 1e-4:
+                if 'NON_UNIFORM_SCALE' not in warnings:
+                    warnings.append('NON_UNIFORM_SCALE')
+            if abs(float(snap.get('scene_scale_length', 1.0)) - 1.0) > 1e-6:
+                if 'NON_UNIT_SCENE_SCALE' not in warnings:
+                    warnings.append('NON_UNIT_SCENE_SCALE')
+            if snap.get('mpi_is_identity') is False:
+                if 'MPI_NOT_IDENTITY' not in warnings:
+                    warnings.append('MPI_NOT_IDENTITY')
+
+        event = _xform_diag_as_plain({
+            'op': op,
+            'build': ADDON_BUILD_TAG,
+            'before': before or {},
+            'after': after or {},
+            'warnings': warnings,
+            'max_child_drift': round(max_drift, 6),
+            'child_drifts': child_drifts,
+        })
+        if XFORM_DIAG_KEY in obj__.keys():
+            try:
+                del obj__[XFORM_DIAG_KEY]
+            except Exception:
+                try:
+                    obj__.pop(XFORM_DIAG_KEY, None)
+                except Exception:
+                    pass
+        obj__[XFORM_DIAG_KEY] = event
+    except Exception:
+        pass
+
+
 def make_single_user_and_apply_transforms(context, obj__):
+    before = _xform_diag_capture(context, obj__)
     select_and_set_active(context, obj__, deselect_all=True)
     bpy.ops.object.make_single_user(object=True, obdata=True, material=True)
     # Freeze rotation AND scale to 1:1 (bakes them into the mesh, no visible
@@ -115,6 +268,8 @@ def make_single_user_and_apply_transforms(context, obj__):
     # thresholds break on non-unit-scaled geometry (e.g. works at 0.025, fails
     # at 0.1). Applying scale gives the nodes true-size geometry.
     bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+    after = _xform_diag_capture(context, obj__)
+    _xform_diag_record(context, obj__, 'apply_transforms_fill', before, after)
 
 def bake_parent_transforms(context, obj__):
     """Unparent with Keep Transform, then FREEZE rotation and scale to 1:1.
@@ -137,6 +292,7 @@ def bake_parent_transforms(context, obj__):
     still distort. A fully general fix would recompute each child's
     matrix_parent_inverse.
     """
+    before = _xform_diag_capture(context, obj__)
     select_and_set_active(context, obj__, deselect_all=True)
     bpy.ops.object.make_single_user(object=True, obdata=True, material=True)
     if obj__.parent is not None:
@@ -151,6 +307,8 @@ def bake_parent_transforms(context, obj__):
     context.view_layer.update()
     for child, mw in child_world.items():
         child.matrix_world = mw
+    after = _xform_diag_capture(context, obj__)
+    _xform_diag_record(context, obj__, 'bake_parent_transforms', before, after)
 
 def prepare_bottle_world_pose(context, obj__):
     """If bottle sits under a parent: unparent Keep Transform + apply rot/scale.
@@ -9013,6 +9171,15 @@ def promote_separate_liquid_object(context, src):
             pass
     if liquid is None:
         return None
+    before = _xform_diag_capture(context, src)
+    try:
+        _, _, liq_ws = liquid.matrix_world.decompose()
+        before['liquid'] = liquid.name
+        before['liquid_world_scale'] = _xform_diag_round_vec(liq_ws, 4)
+        before['liquid_parent'] = (
+            liquid.parent.name if liquid.parent else None)
+    except Exception:
+        pass
     try:
         sync_separate_liquid_mesh(context, src, liquid)
     except Exception as e:
@@ -9036,6 +9203,16 @@ def promote_separate_liquid_object(context, src):
     liquid.hide_set(False)
     liquid.hide_viewport = False
     liquid.hide_render = False
+    after = _xform_diag_capture(context, src)
+    try:
+        _, _, liq_ws = liquid.matrix_world.decompose()
+        after['liquid'] = liquid.name
+        after['liquid_world_scale'] = _xform_diag_round_vec(liq_ws, 4)
+        after['liquid_parent'] = (
+            liquid.parent.name if liquid.parent else None)
+    except Exception:
+        pass
+    _xform_diag_record(context, src, 'liquid_proxy_detach', before, after)
     return liquid
 
 def _unique_collection_name(base_name):
@@ -9096,6 +9273,7 @@ def ensure_separate_liquid_object(context, src):
     existing = find_separate_liquid_object(src)
     if existing is not None:
         return existing
+    before = _xform_diag_capture(context, src)
     mesh = bpy.data.meshes.new(src.name + LIQUID_PROXY_SUFFIX)
     liquid = bpy.data.objects.new(src.name + LIQUID_PROXY_SUFFIX, mesh)
     linked = False
@@ -9118,6 +9296,16 @@ def ensure_separate_liquid_object(context, src):
     marker = dict(marker) if marker else {'version': bl_info['version']}
     marker['separate_liquid'] = liquid.name
     _lqfl_marker_set(src, marker)
+    after = _xform_diag_capture(context, src)
+    try:
+        _, _, liq_ws = liquid.matrix_world.decompose()
+        after['liquid'] = liquid.name
+        after['liquid_world_scale'] = _xform_diag_round_vec(liq_ws, 4)
+        after['liquid_parent'] = (
+            liquid.parent.name if liquid.parent else None)
+    except Exception:
+        pass
+    _xform_diag_record(context, src, 'liquid_proxy_parent', before, after)
     return liquid
 
 def push_liquid_material_to_proxy(src, material):
@@ -12734,6 +12922,86 @@ def build_liquifeel_diagnostics(context):
             _p = _p.parent
         lines.append('Parent chain (name+scale): '
                      + (' -> '.join(chain) if chain else '(none)'))
+        # Live direct children — useful when diagnosing cork/label/liquid drift.
+        child_lines = []
+        for child in obj__.children:
+            try:
+                _, _, cws = child.matrix_world.decompose()
+                mpi_ok = _xform_diag_mpi_is_identity(child)
+                child_lines.append(
+                    f"  '{child.name}' world_loc="
+                    f"{tuple(round(v, 4) for v in child.matrix_world.translation)} "
+                    f"local_scale={tuple(round(v, 4) for v in child.scale)} "
+                    f"world_scale={tuple(round(v, 4) for v in cws)} "
+                    f"mpi_identity={mpi_ok}")
+            except Exception as e:
+                child_lines.append(f"  '{child.name}': <err:{e}>")
+        lines.append('Children (live): '
+                     + ('(none)' if not child_lines else ''))
+        lines.extend(child_lines)
+        # Silent last-event from bake/fill/liquid transform hooks.
+        xdiag = None
+        try:
+            if XFORM_DIAG_KEY in obj__.keys():
+                raw = obj__[XFORM_DIAG_KEY]
+                if hasattr(raw, 'to_dict'):
+                    xdiag = raw.to_dict()
+                elif isinstance(raw, dict):
+                    xdiag = dict(raw)
+                else:
+                    xdiag = None
+        except Exception:
+            xdiag = None
+        if not xdiag:
+            lines.append('Last transform event: (none)')
+        else:
+            lines.append(
+                f"Last transform event: op={xdiag.get('op')} "
+                f"build={xdiag.get('build')} "
+                f"max_child_drift={xdiag.get('max_child_drift')} "
+                f"warnings={list(xdiag.get('warnings') or [])}")
+            before = xdiag.get('before') or {}
+            after = xdiag.get('after') or {}
+            if hasattr(before, 'to_dict'):
+                before = before.to_dict()
+            if hasattr(after, 'to_dict'):
+                after = after.to_dict()
+            lines.append(
+                f"  before: local_scale={before.get('local_scale')} "
+                f"world_scale={before.get('world_scale')} "
+                f"parent={before.get('parent')!r} "
+                f"parent_chain={before.get('parent_chain')}")
+            lines.append(
+                f"  after:  local_scale={after.get('local_scale')} "
+                f"world_scale={after.get('world_scale')} "
+                f"parent={after.get('parent')!r} "
+                f"parent_chain={after.get('parent_chain')}")
+            if after.get('liquid') or before.get('liquid'):
+                lines.append(
+                    f"  liquid: before={before.get('liquid')!r}/"
+                    f"{before.get('liquid_world_scale')} "
+                    f"after={after.get('liquid')!r}/"
+                    f"{after.get('liquid_world_scale')} "
+                    f"parent_after={after.get('liquid_parent')!r}")
+            drifts = xdiag.get('child_drifts') or []
+            if hasattr(drifts, 'to_list'):
+                drifts = drifts.to_list()
+            elif hasattr(drifts, 'values') and not isinstance(drifts, (list, tuple)):
+                try:
+                    drifts = list(drifts.values())
+                except Exception:
+                    drifts = []
+            if drifts:
+                lines.append('  child drifts (>eps):')
+                for d in drifts:
+                    if hasattr(d, 'to_dict'):
+                        d = d.to_dict()
+                    if not isinstance(d, dict):
+                        continue
+                    lines.append(
+                        f"    '{d.get('name')}' drift={d.get('drift')} "
+                        f"loc {d.get('world_loc_before')} -> "
+                        f"{d.get('world_loc_after')}")
         marker = obj__.get('liquifeel')
         lines.append(f"Object 'liquifeel' marker: "
                      f"{marker.to_dict() if hasattr(marker, 'to_dict') else marker}")
