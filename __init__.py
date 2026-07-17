@@ -10,7 +10,7 @@ bl_info = {
 }
 
 # bumped on every local patch, shown in diagnostics to verify which build runs
-ADDON_BUILD_TAG = 'blender52-port-r7'
+ADDON_BUILD_TAG = 'blender52-port-r15'
 
 import bpy
 import mathutils
@@ -108,12 +108,27 @@ def parse_json_string(json_string):
     data = json.loads(json_string)
     return data
 
-## WEB -------------
-
 def make_single_user_and_apply_transforms(context, obj__):
     select_and_set_active(context, obj__, deselect_all=True)
     bpy.ops.object.make_single_user(object=True, obdata=True, material=True)
     # Apparently we don't have to apply the rotation
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+
+def bake_parent_transforms(context, obj__):
+    """Unparent with Keep Transform, then apply rotation/scale.
+
+    LiquiFeel's fill Geometry Nodes read Self Object / Object Info rotation in
+    world space. Nested parents (typical CAD hierarchies) leave that rotation
+    on the parent chain, which breaks liquid generation. Baking the world pose
+    into the object fixes it without changing the visible placement.
+    """
+    select_and_set_active(context, obj__, deselect_all=True)
+    bpy.ops.object.make_single_user(object=True, obdata=True, material=True)
+    if obj__.parent is not None:
+        mw = obj__.matrix_world.copy()
+        obj__.parent = None
+        obj__.matrix_world = mw
+        context.view_layer.update()
     bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
 
 ## WEB -------------
@@ -7806,17 +7821,453 @@ def opening_shape_mandef_update(slf, context):
 @undo_push(2)
 def hide_liquid_update(slf, context):
     obj__ = context.active_object
-    mod = get_geonodes_mod_by_ng_name(obj__, FILL_NG_NAME)
-    mod.show_viewport = not(getattr(slf, 'hide_liquid'))
+    if obj__ is None:
+        return
+    try:
+        mod = get_geonodes_mod_by_ng_name(obj__, FILL_NG_NAME)
+        mod.show_viewport = not(getattr(slf, 'hide_liquid'))
+    except Exception:
+        return
+    schedule_separate_refresh(obj__)
 
 @undo_push(2)
 def hide_recipient_update(prop_parent, context):
     obj__ = context.active_object
-    mod = get_geonodes_mod_by_ng_name(obj__, HIDE_RECIPIENT_NG_NAME)
-    identifier = get_geonodes_field_identifier(
-        mod, 'Hide Recipient')
-    val = getattr(prop_parent, 'hide_recipient')
-    geonode_input_set(mod, identifier, val)
+    if obj__ is None:
+        return
+    try:
+        mod = get_geonodes_mod_by_ng_name(obj__, HIDE_RECIPIENT_NG_NAME)
+        identifier = get_geonodes_field_identifier(
+            mod, 'Hide Recipient')
+        val = getattr(prop_parent, 'hide_recipient')
+        geonode_input_set(mod, identifier, val)
+    except Exception:
+        return
+    schedule_separate_refresh(obj__)
+
+def separate_objects_update(prop_parent, context):
+    # Must not sync/create objects inside the RNA update itself — that crashes
+    # Blender (depsgraph re-entrancy). Defer to a timer tick.
+    obj__ = context.active_object
+    if obj__ is None:
+        return
+    schedule_separate_refresh(obj__, force=True)
+
+LIQUID_PROXY_ROLE = 'liquid_proxy'
+LIQUID_PROXY_SUFFIX = '_LQFL_liquid'
+_separate_objects_sync_lock = False
+_separate_objects_last_sig = {}
+_pending_separate_refresh = set()  # {(object_name, force)}
+
+def _lqfl_marker_get(obj__):
+    marker = obj__.get('liquifeel')
+    if marker is None:
+        return {}
+    if hasattr(marker, 'to_dict'):
+        return marker.to_dict()
+    try:
+        return dict(marker)
+    except Exception:
+        return {}
+
+def _lqfl_marker_set(obj__, data):
+    obj__['liquifeel'] = data
+
+def is_liquid_proxy_object(obj__):
+    return _lqfl_marker_get(obj__).get('role') == LIQUID_PROXY_ROLE
+
+def resolve_liquifeel_source_object(obj__):
+    """Map a liquid proxy selection back to the filled recipient object."""
+    if obj__ is None:
+        return None
+    if is_liquid_proxy_object(obj__):
+        marker = _lqfl_marker_get(obj__)
+        src_name = marker.get('source')
+        if src_name and src_name in bpy.data.objects:
+            return bpy.data.objects[src_name]
+        if obj__.parent is not None:
+            return obj__.parent
+    return obj__
+
+def find_separate_liquid_object(src):
+    marker = _lqfl_marker_get(src)
+    name = marker.get('separate_liquid')
+    if name and name in bpy.data.objects:
+        obj__ = bpy.data.objects[name]
+        if is_liquid_proxy_object(obj__):
+            return obj__
+    for child in src.children:
+        if is_liquid_proxy_object(child):
+            return child
+    return None
+
+def should_maintain_separate_liquid(obj__):
+    if obj__ is None or obj__.type != 'MESH' or is_liquid_proxy_object(obj__):
+        return False
+    if not is_obj_filled(obj__):
+        return False
+    try:
+        props = obj__.hrdc_liquifeel_input_field_props.geometry
+    except Exception:
+        return False
+    if not getattr(props, 'separate_objects', False):
+        return False
+    if getattr(props, 'hide_recipient', False) or getattr(props, 'hide_liquid', False):
+        return False
+    return True
+
+def _separate_liquid_signature(src):
+    """Fingerprint of fill inputs that affect liquid mesh shape / shading."""
+    try:
+        fill_mod = get_geonodes_mod_by_ng_name(src, FILL_NG_NAME)
+        vals = []
+        for socket in fill_mod.node_group.interface.items_tree.values():
+            if getattr(socket, 'in_out', None) == 'INPUT':
+                try:
+                    v = geonode_input_get(
+                        fill_mod,
+                        get_geonodes_field_identifier(fill_mod, socket.name))
+                    if hasattr(v, 'name'):
+                        v = v.name
+                    vals.append((socket.name, v))
+                except Exception:
+                    vals.append((socket.name, None))
+        props = src.hrdc_liquifeel_input_field_props.geometry
+        vals.append(('separate', getattr(props, 'separate_objects', False)))
+        vals.append(('hide_r', getattr(props, 'hide_recipient', False)))
+        vals.append(('hide_l', getattr(props, 'hide_liquid', False)))
+        vals.append(('opening', getattr(props, 'opening_shape', '')))
+        return tuple(vals)
+    except Exception:
+        return None
+
+def schedule_separate_refresh(obj__, force=False):
+    if obj__ is None:
+        return
+    _pending_separate_refresh.add((obj__.name, bool(force)))
+    if not bpy.app.timers.is_registered(_flush_separate_refresh_timer):
+        bpy.app.timers.register(_flush_separate_refresh_timer, first_interval=0.0)
+
+def _flush_separate_refresh_timer():
+    pending = list(_pending_separate_refresh)
+    context = bpy.context
+    # Defer forced refreshes too — touching depsgraph mid-transform cancels G/R.
+    if _is_transform_operator_running(context):
+        return 0.05
+    _pending_separate_refresh.clear()
+    for name, force in pending:
+        obj__ = bpy.data.objects.get(name)
+        if obj__ is None:
+            continue
+        try:
+            refresh_separate_objects_state(context, obj__, force=force)
+        except Exception as e:
+            print(f"LIQUIFEEL: separate refresh failed for '{name}': {e}")
+    _ensure_separate_poll_timer()
+    return None
+
+def _any_separate_objects_active():
+    for obj__ in bpy.data.objects:
+        if obj__.type != 'MESH' or is_liquid_proxy_object(obj__):
+            continue
+        try:
+            if getattr(
+                    obj__.hrdc_liquifeel_input_field_props.geometry,
+                    'separate_objects', False):
+                return True
+        except Exception:
+            continue
+    return False
+
+def _ensure_separate_poll_timer():
+    if _any_separate_objects_active():
+        if not bpy.app.timers.is_registered(_separate_poll_timer):
+            bpy.app.timers.register(_separate_poll_timer, first_interval=0.25)
+
+def _is_transform_operator_running(context):
+    """True while Grab/Rotate/Scale (or similar) modal is active."""
+    op = getattr(context, 'active_operator', None)
+    if op is None:
+        return False
+    op_id = getattr(op, 'bl_idname', '') or ''
+    return (
+        op_id.startswith('TRANSFORM_OT_')
+        or op_id.startswith('OBJECT_OT_transform')
+        or op_id in {
+            'TRANSFORM_OT_translate',
+            'TRANSFORM_OT_rotate',
+            'TRANSFORM_OT_resize',
+            'TRANSFORM_OT_skin_resize',
+            'TRANSFORM_OT_trackball',
+            'TRANSFORM_OT_push_pull',
+            'TRANSFORM_OT_edge_slide',
+            'TRANSFORM_OT_vert_slide',
+        })
+
+def _separate_poll_timer():
+    """Keep liquid proxy in sync when modifier inputs change (no depsgraph hook)."""
+    if _separate_objects_sync_lock:
+        return 0.25
+    context = bpy.context
+    # Never touch the depsgraph mid-transform — that cancels Grab/Rotate.
+    if _is_transform_operator_running(context):
+        return 0.25
+    any_active = False
+    for obj__ in list(bpy.data.objects):
+        if obj__.type != 'MESH' or is_liquid_proxy_object(obj__):
+            continue
+        try:
+            maintain = should_maintain_separate_liquid(obj__)
+            has_proxy = find_separate_liquid_object(obj__) is not None
+            if not (maintain or has_proxy):
+                continue
+            any_active = True
+            if maintain:
+                sig = _separate_liquid_signature(obj__)
+                ptr = obj__.as_pointer()
+                liquid = find_separate_liquid_object(obj__)
+                if (liquid is not None
+                        and len(liquid.data.vertices) > 0
+                        and _separate_objects_last_sig.get(ptr) == sig):
+                    # Nothing changed — do not tag/update the object.
+                    continue
+            refresh_separate_objects_state(context, obj__)
+        except Exception:
+            continue
+    return 0.25 if any_active or _any_separate_objects_active() else None
+
+def promote_separate_liquid_object(context, src):
+    """Turn the live liquid proxy into a permanent, independent object."""
+    liquid = find_separate_liquid_object(src)
+    if liquid is None:
+        try:
+            if getattr(
+                    src.hrdc_liquifeel_input_field_props.geometry,
+                    'separate_objects', False):
+                refresh_separate_objects_state(context, src, force=True)
+                liquid = find_separate_liquid_object(src)
+        except Exception:
+            pass
+    if liquid is None:
+        return None
+    try:
+        sync_separate_liquid_mesh(context, src, liquid)
+    except Exception as e:
+        print(f"LIQUIFEEL: final liquid sync before apply failed: {e}")
+    # Keep world transform, detach from bottle.
+    mw = liquid.matrix_world.copy()
+    liquid.parent = None
+    liquid.matrix_world = mw
+    base_name = f'{src.name}_liquid'
+    liquid.name = base_name
+    if liquid.data is not None:
+        liquid.data.name = base_name
+    if 'liquifeel' in liquid.keys():
+        liquid.pop('liquifeel')
+    marker = _lqfl_marker_get(src)
+    if 'separate_liquid' in marker:
+        marker = dict(marker)
+        marker.pop('separate_liquid', None)
+        _lqfl_marker_set(src, marker)
+    _separate_objects_last_sig.pop(src.as_pointer(), None)
+    liquid.hide_set(False)
+    liquid.hide_viewport = False
+    liquid.hide_render = False
+    return liquid
+
+def _unique_collection_name(base_name):
+    name = base_name
+    i = 1
+    while name in bpy.data.collections:
+        name = f'{base_name}.{i:03d}'
+        i += 1
+    return name
+
+def move_objects_to_new_collection(context, objects, base_name):
+    """Create a new collection and put the given objects only there."""
+    objs = [o for o in objects if o is not None]
+    if not objs:
+        return None
+    col_name = _unique_collection_name(base_name)
+    new_col = bpy.data.collections.new(col_name)
+    # Parent under the same collection hierarchy as the first object when possible.
+    parent_col = None
+    for col in objs[0].users_collection:
+        parent_col = col
+        break
+    if parent_col is not None:
+        parent_col.children.link(new_col)
+    else:
+        context.scene.collection.children.link(new_col)
+    for obj__ in objs:
+        for col in list(obj__.users_collection):
+            col.objects.unlink(obj__)
+        if obj__.name not in new_col.objects:
+            new_col.objects.link(obj__)
+    return new_col
+
+def teardown_separate_liquid_object(context, src):
+    global _separate_objects_last_sig
+    liquid = find_separate_liquid_object(src)
+    if liquid is not None:
+        mesh = liquid.data
+        bpy.data.objects.remove(liquid, do_unlink=True)
+        if mesh is not None and mesh.users == 0:
+            bpy.data.meshes.remove(mesh)
+    marker = _lqfl_marker_get(src)
+    if 'separate_liquid' in marker:
+        marker = dict(marker)
+        marker.pop('separate_liquid', None)
+        _lqfl_marker_set(src, marker)
+    _separate_objects_last_sig.pop(src.as_pointer(), None)
+    if is_obj_filled(src):
+        try:
+            fill_mod = get_geonodes_mod_by_ng_name(src, FILL_NG_NAME)
+            hide_liquid = getattr(
+                src.hrdc_liquifeel_input_field_props.geometry, 'hide_liquid', False)
+            fill_mod.show_viewport = not hide_liquid
+        except Exception:
+            pass
+
+def ensure_separate_liquid_object(context, src):
+    existing = find_separate_liquid_object(src)
+    if existing is not None:
+        return existing
+    mesh = bpy.data.meshes.new(src.name + LIQUID_PROXY_SUFFIX)
+    liquid = bpy.data.objects.new(src.name + LIQUID_PROXY_SUFFIX, mesh)
+    linked = False
+    for col in src.users_collection:
+        col.objects.link(liquid)
+        linked = True
+    if not linked:
+        context.collection.objects.link(liquid)
+    liquid.parent = src
+    liquid.matrix_parent_inverse.identity()
+    liquid.location = (0.0, 0.0, 0.0)
+    liquid.rotation_euler = (0.0, 0.0, 0.0)
+    liquid.scale = (1.0, 1.0, 1.0)
+    _lqfl_marker_set(liquid, {
+        'version': bl_info['version'],
+        'role': LIQUID_PROXY_ROLE,
+        'source': src.name,
+    })
+    marker = _lqfl_marker_get(src)
+    marker = dict(marker) if marker else {'version': bl_info['version']}
+    marker['separate_liquid'] = liquid.name
+    _lqfl_marker_set(src, marker)
+    return liquid
+
+def push_liquid_material_to_proxy(src, material):
+    """Immediately put the Liquid Shader on the proxy mesh (slot 0, all faces)."""
+    liquid = find_separate_liquid_object(src)
+    if liquid is None or material is None or liquid.data is None:
+        return
+    mesh = liquid.data
+    mesh.materials.clear()
+    mesh.materials.append(material)
+    for poly in mesh.polygons:
+        poly.material_index = 0
+    mesh.update()
+
+def sync_separate_liquid_mesh(context, src, liquid_obj):
+    """Bake evaluated liquid geometry onto the proxy, keeping materials/attrs.
+
+    Fill GN often stores Liquid Shader at material slot index 1 (slot 0 empty).
+    After bake we normalize the liquid-only mesh to a single Liquid Shader slot
+    so shading always shows on the proxy object.
+    """
+    fill_mod = get_geonodes_mod_by_ng_name(src, FILL_NG_NAME)
+    hide_mod = get_geonodes_mod_by_ng_name(src, HIDE_RECIPIENT_NG_NAME)
+    hide_id = get_geonodes_field_identifier(hide_mod, 'Hide Recipient')
+    saved_fill_vp = fill_mod.show_viewport
+    saved_hide = geonode_input_get(hide_mod, hide_id)
+    fill_mod.show_viewport = True
+    for mod in src.modifiers:
+        if is_shader_aux_modifier(mod, src, 'fill'):
+            mod.show_viewport = True
+    geonode_input_set(hide_mod, hide_id, True)
+    src.update_tag()
+    deps = context.evaluated_depsgraph_get()
+    deps.update()
+    ev = src.evaluated_get(deps)
+    new_mesh = None
+    try:
+        new_mesh = bpy.data.meshes.new_from_object(
+            ev, preserve_all_data_layers=True, depsgraph=deps)
+        liquid_mat = None
+        try:
+            liquid_mat = get_geonode_mod_input(src, FILL_NG_NAME, 'Liquid Shader')
+        except Exception:
+            liquid_mat = None
+        if liquid_mat is None:
+            for slot_mat in new_mesh.materials:
+                if slot_mat is not None:
+                    liquid_mat = slot_mat
+                    break
+        # Liquid-only mesh: one material slot, all faces → Liquid Shader.
+        if liquid_mat is not None:
+            new_mesh.materials.clear()
+            new_mesh.materials.append(liquid_mat)
+            for poly in new_mesh.polygons:
+                poly.material_index = 0
+        old_mesh = liquid_obj.data
+        liquid_obj.data = new_mesh
+        new_mesh = None
+        if old_mesh is not None and old_mesh.users == 0:
+            bpy.data.meshes.remove(old_mesh)
+        liquid_obj.data.update()
+        if liquid_mat is not None:
+            push_liquid_material_to_proxy(src, liquid_mat)
+    finally:
+        if new_mesh is not None and new_mesh.users == 0:
+            bpy.data.meshes.remove(new_mesh)
+        fill_mod.show_viewport = saved_fill_vp
+        geonode_input_set(hide_mod, hide_id, saved_hide)
+        src.update_tag()
+
+def refresh_separate_objects_state(context, obj__, force=False):
+    global _separate_objects_sync_lock
+    if _separate_objects_sync_lock or obj__ is None:
+        return
+    if is_liquid_proxy_object(obj__):
+        return
+    if _is_transform_operator_running(context) and not force:
+        return
+    _separate_objects_sync_lock = True
+    try:
+        if should_maintain_separate_liquid(obj__):
+            sig = _separate_liquid_signature(obj__)
+            ptr = obj__.as_pointer()
+            liquid = find_separate_liquid_object(obj__)
+            if (not force
+                    and liquid is not None
+                    and len(liquid.data.vertices) > 0
+                    and _separate_objects_last_sig.get(ptr) == sig):
+                fill_mod = get_geonodes_mod_by_ng_name(obj__, FILL_NG_NAME)
+                # Only write if needed — writing every tick breaks transforms.
+                if fill_mod.show_viewport:
+                    fill_mod.show_viewport = False
+                return
+            fill_mod = get_geonodes_mod_by_ng_name(obj__, FILL_NG_NAME)
+            # Bottle stays on the source (Select Outer); liquid lives on the proxy.
+            fill_mod.show_viewport = False
+            liquid = ensure_separate_liquid_object(context, obj__)
+            sync_separate_liquid_mesh(context, obj__, liquid)
+            liquid.hide_set(False)
+            liquid.hide_viewport = False
+            liquid.hide_render = False
+            _separate_objects_last_sig[ptr] = sig
+        else:
+            teardown_separate_liquid_object(context, obj__)
+    finally:
+        _separate_objects_sync_lock = False
+
+def _unregister_separate_timers():
+    if bpy.app.timers.is_registered(_flush_separate_refresh_timer):
+        bpy.app.timers.unregister(_flush_separate_refresh_timer)
+    if bpy.app.timers.is_registered(_separate_poll_timer):
+        bpy.app.timers.unregister(_separate_poll_timer)
+    _pending_separate_refresh.clear()
 
 # # key_chain: ['liquifeel_input_field_props', 'geometry', 'manual']
 # # path: liquifeel_input_field_props.geometry.manual
@@ -8568,27 +9019,31 @@ registerable_classes.append(MiscData)
 
 @undo_push(2)
 def hrdc_slot_shading_material_update(slf, context):
-    obj__ = context.active_object
+    obj__ = resolve_liquifeel_source_object(context.active_object)
     library_key = getattr(slf, 'library')
     material_name = getattr(slf, f'{library_key}_material')
     hrdc_slot_shade(context, obj__, library_key, material_name)
 
 @undo_push(2)
 def hrdc_fill_shading_material_update(slf, context):
-    obj__ = context.active_object
+    obj__ = resolve_liquifeel_source_object(context.active_object)
+    if obj__ is None or not is_obj_filled(obj__):
+        return
     library_key = getattr(slf, 'library')
     material_name = getattr(slf, f'{library_key}_material')
     hrdc_fill_shade(context, obj__, library_key, material_name)
 
 @undo_push(2)
 def hrdc_scene_slot_shading_material_update(slf, context):
-    obj__ = context.active_object
+    obj__ = resolve_liquifeel_source_object(context.active_object)
     material_name = getattr(slf, 'scene_material')
     hrdc_slot_shade(context, obj__, 'scene', material_name)
 
 @undo_push(2)
 def hrdc_scene_fill_shading_material_update(slf, context):
-    obj__ = context.active_object
+    obj__ = resolve_liquifeel_source_object(context.active_object)
+    if obj__ is None or not is_obj_filled(obj__):
+        return
     material_name = getattr(slf, 'scene_material')
     hrdc_fill_shade(context, obj__, 'scene', material_name)
 
@@ -8661,6 +9116,13 @@ class HRDC_ObjAttch_Geometry_InptPrps(bpy.types.PropertyGroup):
     hide_liquid: bpy.props.BoolProperty(
         name='Hide Liquid',
         update=hide_liquid_update, # !!! I think this is appropriate. TEST IT!
+        default=False)
+    separate_objects: bpy.props.BoolProperty(
+        name='Separate Objects',
+        description=(
+            'When bottle and liquid are both visible, keep liquid as a '
+            'separate object that stays in sync with LiquiFeel settings'),
+        update=separate_objects_update,
         default=False)
     # Copied from synthetically generatd code (from the obsolete execd system)
     # liquid_amount: bpy.props.FloatProperty(
@@ -9951,13 +10413,61 @@ def append_geonode_group(node_group_name, posix_filepath):
 #     ng = data_to.node_groups[0]
 #     return ng
 
+# Fill NGs that must expose Wall Overlap / Subdivision. An older copy already
+# in bpy.data (same addon version marker) would otherwise be reused by
+# maybe_append and break assign_fill_default_vals with KeyError.
+FILL_NG_REQUIRED_INPUTS = ('Wall Overlap', 'Subdivision')
+FILL_NG_REFRESH_TARGETS = (
+    (FILL_NG_NAME, FILL_NG_REQUIRED_INPUTS),
+    ('LiquiFeelv1.3_Group', FILL_NG_REQUIRED_INPUTS),
+)
+
+def geonode_group_input_names(ng):
+    names = set()
+    for it in ng.interface.items_tree:
+        if (getattr(it, 'item_type', None) == 'SOCKET'
+                and getattr(it, 'in_out', None) == 'INPUT'):
+            names.add(it.name)
+    return names
+
+def geonode_group_is_missing_inputs(ng, required_names):
+    have = geonode_group_input_names(ng)
+    return any(name not in have for name in required_names)
+
+def _unique_node_group_name(base_name):
+    if base_name not in bpy.data.node_groups:
+        return base_name
+    i = 1
+    while True:
+        candidate = f'{base_name}.{i:03d}'
+        if candidate not in bpy.data.node_groups:
+            return candidate
+        i += 1
+
+def retire_stale_fill_node_groups():
+    # If either the main fill tree or its subgroup lacks the sockets this build
+    # expects, retire BOTH so a fresh append remaps nested Group references.
+    stale = False
+    for ng_name, required in FILL_NG_REFRESH_TARGETS:
+        ng = bpy.data.node_groups.get(ng_name)
+        if ng is not None and geonode_group_is_missing_inputs(ng, required):
+            stale = True
+            break
+    if not stale:
+        return
+    for ng_name, _required in FILL_NG_REFRESH_TARGETS:
+        ng = bpy.data.node_groups.get(ng_name)
+        if ng is not None:
+            ng.name = _unique_node_group_name(ng_name + '__legacy')
+
 def maybe_append_geonode_group(node_group_name, filepath):
+    if node_group_name == FILL_NG_NAME:
+        retire_stale_fill_node_groups()
     if node_group_name in bpy.data.node_groups.keys():
         ng__ = bpy.data.node_groups[node_group_name]
         if not is_asset_legacy_configured(ng__):
             return ng__
-        else:
-            ng__.name += '__legacy'
+        ng__.name = _unique_node_group_name(ng__.name + '__legacy')
     return append_geonode_group(node_group_name, filepath)
 # def maybe_append_geonode_group(node_group_name, filepath):
 #     if node_group_name in bpy.data.node_groups.keys():
@@ -10337,6 +10847,12 @@ def assign_fill_default_vals(context, obj__):
     # dddd : GeoNode : FILL_NG_NAME : Meniscus Scale : meniscus_scale
     set_geonode_mod_input(
         obj__, FILL_NG_NAME, 'Meniscus Scale', 'float', 1.0)
+    # dddd : GeoNode : FILL_NG_NAME : Wall Overlap : wall_overlap
+    set_geonode_mod_input(
+        obj__, FILL_NG_NAME, 'Wall Overlap', 'float', 0.005)
+    # dddd : GeoNode : FILL_NG_NAME : Subdivision : subdivision
+    set_geonode_mod_input(
+        obj__, FILL_NG_NAME, 'Subdivision', 'int', 0)
     # dddd : GeoNode : FILL_NG_NAME : Seal : seal
     set_geonode_mod_input(
         obj__, FILL_NG_NAME, 'Seal', 'bool', False)
@@ -10361,44 +10877,14 @@ def fill_object(context, obj__):
                 'version': bl_info['version']
             }
         obj__['liquifeel']['filled'] = True
-        # obj__['liquifeel']['fill_shading'] = {
-        #     'filled': True
-        # }
         assign_select_outer_geonode_mod(obj__)
         assign_fill_geonode_mod(obj__)
         assign_hide_recipient_geonode_mod(obj__)
-        # # There's a dedicated operator for condensation, no need to assign the mod at fill-time
-        # assign_condensation_geonode_mod(obj__)
         if has_obj_condensation(obj__):
             move_mod_in_stack(
                 obj__, CONDENSATION_NG_NAME, get_condensation_mod_pos_index(obj__))
-        # # Assigning default vals
         assign_fill_default_vals(context, obj__)
-        # for ui_input_name, redux_input_data in REDUX_INPUT_DATA['geometry']['object_attached'].items():
-        #     # if DEV:
-        #     #     print()
-        #     #     print(f'fill_object({context}, {obj__})')
-        #     #     print('ui_input_name: ', ui_input_name)
-        #     #     print()
-        #     input_field_data = index_hierarchy_by_path(
-        #         INPUT_FIELD_DATA, redux_input_data['paths'][0]['list'])
-        #     # declaration_modality_key = get_declaration_modality_key(redux_input_data)
-        #     prop_key_chain = [
-        #         'hrdc_liquifeel_input_field_props', 'geometry', input_field_data['prop_key']]
-        #     # prop_key_chain = [
-        #     #     'liquifeel_input_field_props', 'geometry', declaration_modality_key, input_field_data['prop_key']]
-        #     prop_parent, prop_key = ref_ob_key_pair(obj__, prop_key_chain)
-        #     # Assigning default values for the relevant ui input props.
-        #     if 'ui_prop_from_default' in input_field_data['setters'].keys():
-        #         input_field_data['setters']['ui_prop_from_default'](prop_parent)
-        #     underlying_input_setters = input_field_data['setters']['per_shading_modality'][
-        #         'slot'] # Random shading_modality_key, in this case, the same update f is in both.
-        #     # Setting the underlying input with the default val
-        #     # if all(['underlying_from_default' in underlying_input_setters.keys(),
-        #     #         declaration_modality_key == 'synthetic']):
-        #     if input_field_data['ui_input_name'] == 'Liquid Amount':
-        #         underlying_input_setters['underlying_from_default'](
-        #             prop_parent, obj__, None)
+        schedule_separate_refresh(obj__, force=True)
 # def fill_object(context, obj__):
 #     if assert_island_count_f(1)(context, obj__):
 #         make_single_user_and_apply_transforms(context, obj__)
@@ -10476,6 +10962,42 @@ class CheckActiveGeometry(bpy.types.Operator):
         return {'FINISHED'}
 registerable_classes.append(CheckActiveGeometry)
 
+class BakeParentTransforms(bpy.types.Operator):
+    bl_idname = 'liquifeel.bake_parent_transforms'
+    bl_label = 'Unparent & Apply Transforms'
+    bl_description = (
+        'Clear the parent (Keep Transform) and apply rotation/scale.\n'
+        'Needed when the object sits under a nested hierarchy so that\n'
+        'LiquiFeel can generate liquid correctly')
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        obj__ = context.active_object
+        return (
+            obj__ is not None
+            and obj__.type == 'MESH'
+            and obj__.mode == 'OBJECT'
+            and obj__.parent is not None)
+
+    def execute(self, context):
+        obj__ = context.active_object
+        if (obj__.library or obj__.override_library
+                or (obj__.data is not None and obj__.data.library)):
+            self.report(
+                {'ERROR'},
+                f"'{obj__.name}' is linked from another file. "
+                "Make it local first.")
+            return {'CANCELLED'}
+        had_parent = obj__.parent.name if obj__.parent else None
+        bake_parent_transforms(context, obj__)
+        self.report(
+            {'INFO'},
+            f"Unparented '{obj__.name}' from '{had_parent}' and applied "
+            "rotation/scale.")
+        return {'FINISHED'}
+registerable_classes.append(BakeParentTransforms)
+
 def is_liquifeel_leftover_ng(ng):
     return ('liquifeel' in ng.keys()
             or '__legacy' in ng.name
@@ -10528,8 +11050,14 @@ def deep_clean_liquifeel_data(context):
         collect_node_group_deps(ng, dep_objs)
     top_names = {ng.name for ng in top_groups}
     dep_names = {ng.name for ng in dep_objs} - top_names
-    # 2. Strip modifiers and markers from every object.
-    for obj in bpy.data.objects:
+    # 2. Strip modifiers and markers from every object; remove liquid proxies.
+    for obj in list(bpy.data.objects):
+        if is_liquid_proxy_object(obj):
+            mesh = obj.data
+            bpy.data.objects.remove(obj, do_unlink=True)
+            if mesh is not None and mesh.users == 0:
+                bpy.data.meshes.remove(mesh)
+            continue
         for mod in list(obj.modifiers):
             if mod.type == 'NODES' and (
                     (mod.node_group is None and mod.name.startswith((
@@ -10807,22 +11335,6 @@ class LaunchGuide(bpy.types.Operator):
         return {'FINISHED'}
 registerable_classes.append(LaunchGuide)
 
-class LaunchWebsite(bpy.types.Operator):
-    bl_idname = 'liquifeel.launch_website'
-    bl_label = 'Launch Website'
-    def execute(self, context):
-        open_webpage(URLS['liquifeel_website'])
-        return {'FINISHED'}
-registerable_classes.append(LaunchWebsite)
-
-class LaunchWebsite(bpy.types.Operator):
-    bl_idname = 'liquifeel.launch_discord'
-    bl_label = 'Launch Discord'
-    def execute(self, context):
-        open_webpage(URLS['discord'])
-        return {'FINISHED'}
-registerable_classes.append(LaunchWebsite)
-
 class CycleTabs(bpy.types.Operator):
     bl_idname = 'liquifeel.cycle_tabs'
     bl_label = 'Cycle Tabs'
@@ -10890,6 +11402,11 @@ def clear_asset(context):
 @undo_push(1)
 def clear_fill(context, material_only=False):
     obj__ = context.active_object
+    teardown_separate_liquid_object(context, obj__)
+    try:
+        obj__.hrdc_liquifeel_input_field_props.geometry.separate_objects = False
+    except Exception:
+        pass
     # Remove the fill modifier and its auxiliary mods - tolerantly, so that a
     # partially broken fill (missing mods, dangling node groups) can still be
     # cleared instead of raising and leaving the object stuck.
@@ -11018,7 +11535,86 @@ def apply_asset(context):
 
 @undo_push(1)
 def apply_fill(context):
-    obj__ = context.active_object
+    obj__ = resolve_liquifeel_source_object(context.active_object)
+    if obj__ is None:
+        return
+    select_and_set_active(context, obj__, deselect_all=True)
+    separate_on = False
+    try:
+        separate_on = bool(getattr(
+            obj__.hrdc_liquifeel_input_field_props.geometry,
+            'separate_objects', False))
+    except Exception:
+        separate_on = False
+    has_proxy = find_separate_liquid_object(obj__) is not None
+
+    # Separate Objects: keep bottle + liquid as two real objects after apply.
+    if separate_on or has_proxy:
+        # Detach liquid first so bake_parent / transform_apply on the bottle
+        # cannot corrupt the liquid world pose via the parent chain.
+        liquid_obj = promote_separate_liquid_object(context, obj__)
+        if liquid_obj is None:
+            print('LIQUIFEEL: separate apply aborted — no liquid proxy to promote')
+            return
+        # Free the bottle from CAD/parent hierarchy so it can be moved freely.
+        if obj__.parent is not None:
+            try:
+                bake_parent_transforms(context, obj__)
+            except Exception as e:
+                print(f'LIQUIFEEL: bake_parent_transforms before apply failed: {e}')
+                mw = obj__.matrix_world.copy()
+                obj__.parent = None
+                obj__.matrix_world = mw
+        try:
+            obj__.hrdc_liquifeel_input_field_props.geometry.separate_objects = False
+        except Exception:
+            pass
+        if any([is_mod_main_fill(mod) for mod in obj__.modifiers]):
+            try:
+                fill_mod = get_geonodes_mod_by_ng_name(obj__, FILL_NG_NAME)
+                fill_mod.show_viewport = False
+            except Exception:
+                pass
+            # Bake bottle-only geometry (Select Outer), then drop fill stack.
+            try:
+                bpy.ops.object.modifier_apply(
+                    modifier=get_geonodes_mod_by_ng_name(
+                        obj__, SELECT_OUTER_NG_NAME).name)
+            except Exception:
+                remove_geonode_mods_by_ng_name(obj__, SELECT_OUTER_NG_NAME)
+            remove_geonode_mods_by_ng_name(obj__, FILL_NG_NAME)
+            remove_geonode_mods_by_ng_name(obj__, HIDE_RECIPIENT_NG_NAME)
+            for mod in [mod for mod in obj__.modifiers if is_shader_aux_modifier(
+                    mod, obj__, 'fill')]:
+                obj__.modifiers.remove(mod)
+        marker = _lqfl_marker_get(obj__)
+        if marker:
+            marker = dict(marker)
+            marker.pop('filled', None)
+            marker.pop('fill_shading', None)
+            marker.pop('separate_liquid', None)
+            if set(marker.keys()) <= {'version'}:
+                maybe_remove_lqfl_object_tags(obj__)
+            else:
+                _lqfl_marker_set(obj__, marker)
+        elif not(is_obj_library_slot_shaded__anylib(obj__)):
+            maybe_remove_lqfl_object_tags(obj__)
+        # Parent liquid under bottle so moving/rotating the bottle moves both.
+        mw = liquid_obj.matrix_world.copy()
+        liquid_obj.parent = obj__
+        liquid_obj.matrix_world = mw
+        # Two objects in a fresh Outliner collection/group.
+        move_objects_to_new_collection(
+            context,
+            [obj__, liquid_obj],
+            f'{obj__.name}_LiquiFeel')
+        return
+
+    teardown_separate_liquid_object(context, obj__)
+    try:
+        obj__.hrdc_liquifeel_input_field_props.geometry.separate_objects = False
+    except Exception:
+        pass
     # apply all fill shader liquifeel modifiers
     if any([is_mod_main_fill(mod) for mod in obj__.modifiers]): # has fill mod
         # apply the fill modifier and it's auxiliary mods
@@ -11029,15 +11625,10 @@ def apply_fill(context):
                 modifier=get_geonodes_mod_by_ng_name(obj__, ng_name).name)
     # apply the material auxiliary modifiers
     for mod in [mod for mod in obj__.modifiers if is_shader_aux_modifier(mod, obj__, 'fill')]:
-        bpy.ops.object.modifier_apply(mod.name)
-    # for mod in [mod for mod in obj__.modifiers if is_fill_shader_aux_modifier(mod, obj__)]:
-    #     bpy.ops.object.modifier_apply(mod.name)
+        bpy.ops.object.modifier_apply(modifier=mod.name)
     if not(is_obj_library_slot_shaded__anylib(obj__)):
         if 'liquifeel' in obj__:
             obj__.pop('liquifeel')
-    # # We could make it single user (not sure if necessary though)
-    # bpy.ops.object.make_single_user(material=True)
-    # maybe remove object tag attached data (if not slot shaded)
     if not(is_obj_library_slot_shaded__anylib(obj__)):
         maybe_remove_lqfl_object_tags(obj__)
 
@@ -11261,6 +11852,8 @@ def fill_shade(context, obj__, library_key, material_name):
         context,
         get_geonodes_mod_by_ng_name(obj__, FILL_NG_NAME))
     update_obj_render_view(context, obj__)
+    push_liquid_material_to_proxy(obj__, material)
+    schedule_separate_refresh(obj__, force=True)
 
 # @undo_push(4)
 def hrdc_fill_shade(context, obj__, library_key, material_name):
@@ -11292,16 +11885,16 @@ def hrdc_fill_shade(context, obj__, library_key, material_name):
         context,
         get_geonodes_mod_by_ng_name(obj__, FILL_NG_NAME))
     update_obj_render_view(context, obj__)
+    push_liquid_material_to_proxy(obj__, material)
+    schedule_separate_refresh(obj__, force=True)
 
 class ShadeActiveObjectViaFill(bpy.types.Operator):
     bl_idname = 'liquifeel.shade_active_object_via_fill'
     bl_label = 'Shade Active Object Via Fill'
     def execute(self, context):
-        obj__ = context.active_object
+        obj__ = resolve_liquifeel_source_object(context.active_object)
         library_key, material_name = get_library_key_and_material_name(
             obj__, shading_modality_key='fill')
-        # library_key = getattr(obj__.liquifeel_field_inputs.fill_shading, 'library')
-        # material_name = getattr(obj__.liquifeel_field_inputs.fill_shading, f'library_{library_key}_material')
         fill_shade(context, obj__, library_key, material_name)
         return {'FINISHED'}
 registerable_classes.append(ShadeActiveObjectViaFill)
@@ -11310,7 +11903,7 @@ class HRDC_ShadeActiveObjectViaFill(bpy.types.Operator):
     bl_idname = 'liquifeel.hrdc_shade_active_object_via_fill'
     bl_label = 'Shade Active Object Via Fill'
     def execute(self, context):
-        obj__ = context.active_object
+        obj__ = resolve_liquifeel_source_object(context.active_object)
         library_key, material_name = hrdc_get_library_key_and_material_name(
             obj__, shading_modality_key='fill')
         hrdc_fill_shade(context, obj__, library_key, material_name)
@@ -12053,44 +12646,6 @@ def draw_navigation_and_feedback(context, root_layout):
 #     draw_spacing(root_layout)
 
 
-def draw_discord_launcher(context, root_layout):
-    documentation_row = root_layout.row()
-    documentation_row.scale_y = SML_H
-    documentation_row.operator(
-        'liquifeel.launch_discord',
-        text='Join Liquifeel Discord',
-        icon_value=preview_data['ids']['icons']['discord'],
-        emboss=True,
-    )
-    # draw_spacing(root_layout)
-
-def draw_documentation_launchers(context, root_layout):
-    documentation_row = root_layout.row()
-    documentation_row.scale_y = SML_H
-    documentation_row.operator(
-        'liquifeel.launch_website',
-        text='Documentation',
-        icon_value=preview_data['ids']['icons']['documentation'],
-        emboss=True,
-    )
-    # draw_spacing(root_layout)
-
-# # DEACTIVATED FOR LACK OF URLS
-# def draw_documentation_launchers(context, root_layout):
-#     documentation_row = root_layout.row()
-#     documentation_row.scale_y = SML_H
-#     documentation_row.operator(
-#         'liquifeel.launch_guide',
-#         text='guide',
-#         icon_value=preview_data['ids']['icons']['youtube'],
-#     )
-#     documentation_row.operator(
-#         'liquifeel.launch_gallery',
-#         text='gallery',
-#         icon_value=preview_data['ids']['icons']['gallery'],
-#     )
-#     draw_spacing(root_layout)
-
 def draw_filled_geometry_ui(context, root_layout):
     obj__ = context.active_object
     box = root_layout.box()
@@ -12106,6 +12661,10 @@ def draw_filled_geometry_ui(context, root_layout):
         obj__, FILL_NG_NAME, 'Meniscus Type', box)
     draw_geonodes_mod_prop(
         obj__, FILL_NG_NAME, 'Meniscus Scale', box)
+    draw_geonodes_mod_prop(
+        obj__, FILL_NG_NAME, 'Wall Overlap', box)
+    draw_geonodes_mod_prop(
+        obj__, FILL_NG_NAME, 'Subdivision', box)
     draw_geonodes_mod_prop(
         obj__, FILL_NG_NAME, 'Seal', box, text='Seal Container')
     hrdc_draw_hide_controls(obj__, box)
@@ -12146,6 +12705,16 @@ def draw_filled_geometry_ui(context, root_layout):
 #     draw_hide_controls(obj__, box)
 #     # draw_spacing(root_layout)
 
+def draw_bake_parent_transforms_button(obj__, root_layout):
+    if obj__.parent is None:
+        return
+    row = root_layout.row()
+    row.scale_y = MID_H
+    row.operator(
+        'liquifeel.bake_parent_transforms',
+        text='Unparent & Apply Transforms',
+        icon='OBJECT_ORIGIN')
+
 def draw_geometry_ui(context, root_layout):
     if is_active_selected_ob(context):
         obj__ = context.active_object
@@ -12154,6 +12723,7 @@ def draw_geometry_ui(context, root_layout):
                 if is_asset_legacy_configured(obj__):
                     draw_legacy_asset_configuration_message(context, root_layout)
                 else:
+                    draw_bake_parent_transforms_button(obj__, root_layout)
                     if is_obj_filled(obj__):
                         draw_filled_geometry_ui(context, root_layout)
                     else:
@@ -12175,6 +12745,7 @@ def draw_geometry_ui(context, root_layout):
                     text='Please separate the part that you want to fill and')
                 root_layout.label(
                     text='make sure it has thickness and a suitable opening')
+                draw_bake_parent_transforms_button(obj__, root_layout)
                 check_row = root_layout.row()
                 check_row.scale_y = MID_H
                 check_row.operator(
@@ -12500,6 +13071,7 @@ def hrdc_draw_hide_controls(obj__, root_layout):
         prop_parent, 'hide_recipient')
     hide_liquid_row.prop(
         prop_parent, 'hide_liquid')
+    root_layout.prop(prop_parent, 'separate_objects')
 
 def draw_scene_shading_ui(obj__, shading_modality_key, context, root_layout):
     draw_library_selector(obj__, context, root_layout, shading_modality_key)
@@ -13836,7 +14408,7 @@ def draw_liquid_amount_slider(obj__, root_layout):
     root_layout.prop(fill_mod, f'["{liquid_amount_input_identifier}"]', text='Liquid Level')
 
 def hrdc_draw_shading_ui__(shading_modality_key, context, root_layout):  # !!! To be customized into the hardcoded-ui version
-    obj__ = context.active_object
+    obj__ = resolve_liquifeel_source_object(context.active_object)
     library_key, mat_name = hrdc_get_library_key_and_material_name(
         obj__, shading_modality_key=shading_modality_key)
     # print(library_key, mat_name)
@@ -13913,7 +14485,7 @@ def draw_fill_shading_ui(context, root_layout):
     # draw_spacing(root_layout)
 
 def hrdc_draw_fill_shading_ui(context, root_layout):
-    obj__ = context.active_object
+    obj__ = resolve_liquifeel_source_object(context.active_object)
     draw_shading_target_selector(obj__, context, root_layout) # recipient or liquid
     general_ctrl__ = context.scene.liquifeel_general_controls
     if getattr(general_ctrl__, 'shading_target') == 'recipient':
@@ -13936,7 +14508,7 @@ def draw_shading_ui(context, root_layout):
 
 def hrdc_draw_shading_ui(context, root_layout):
     if is_active_selected_ob(context):
-        obj__ = context.active_object
+        obj__ = resolve_liquifeel_source_object(context.active_object)
         if is_asset_legacy_configured(obj__):
             draw_legacy_asset_configuration_message(context, root_layout)
         else:
@@ -14127,8 +14699,6 @@ def draw_clear_apply_ui(context, root_layout):
 #     draw_spacing(panel__.layout)
 #     draw_clear_apply_ui(context, panel__.layout)
 #     draw_spacing(panel__.layout)
-#     draw_discord_launcher(context, panel__.layout)
-#     draw_documentation_launchers(context, panel__.layout)
 
 # class MainPanel(bpy.types.Panel):
 #     bl_idname = 'OBJECT_PT_liquifeel_main_panel'
@@ -14152,8 +14722,6 @@ def draw_hrdc_main_panel(panel__, context):
     draw_spacing(panel__.layout)
     # draw_clear_apply_ui(context, panel__.layout)
     draw_spacing(panel__.layout)
-    draw_discord_launcher(context, panel__.layout)
-    draw_documentation_launchers(context, panel__.layout)
     panel__.layout.operator(
         'liquifeel.deep_clean_data',
         text='Remove All LiquiFeel Data',
@@ -14282,6 +14850,7 @@ def register():
 def unregister():
     print()
     print('LIQUIFEEL: unregister()')
+    _unregister_separate_timers()
     classes_to_unregister = get_classes()
     for cls in classes_to_unregister:
         print('unregistering class:', cls)

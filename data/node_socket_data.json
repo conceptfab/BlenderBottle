@@ -9,6 +9,18 @@
               "max": 100.0,
               "default_val": 50.0,
               "socket_type": "NodeSocketFloat"
+            },
+            "Wall Overlap": {
+              "min": 0.0,
+              "max": 0.05,
+              "default_val": 0.005,
+              "socket_type": "NodeSocketFloat"
+            },
+            "Subdivision": {
+              "min": 0.0,
+              "max": 3.0,
+              "default_val": 0.0,
+              "socket_type": "NodeSocketInt"
             }
           },
           "Hide_Recipient": {},
