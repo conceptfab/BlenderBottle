@@ -111,21 +111,26 @@ def parse_json_string(json_string):
 def make_single_user_and_apply_transforms(context, obj__):
     select_and_set_active(context, obj__, deselect_all=True)
     bpy.ops.object.make_single_user(object=True, obdata=True, material=True)
-    # Rotation only -- never bake scale (see bake_parent_transforms docstring).
-    bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
+    # Freeze rotation AND scale to 1:1 (bakes them into the mesh, no visible
+    # change). The fill Geometry Nodes assume unit object scale — absolute
+    # thresholds break on non-unit-scaled geometry (e.g. works at 0.025, fails
+    # at 0.1). Applying scale gives the nodes true-size geometry.
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
 
 def bake_parent_transforms(context, obj__):
-    """Unparent with Keep Transform, then apply ROTATION ONLY.
+    """Unparent with Keep Transform, then FREEZE rotation and scale to 1:1.
 
-    LiquiFeel's fill Geometry Nodes read Self Object / Object Info rotation in
-    world space. Nested parents (typical CAD hierarchies) leave that rotation
-    on the parent chain, which breaks liquid generation. Baking the world
-    rotation into the object fixes it without changing the visible placement.
+    LiquiFeel's fill Geometry Nodes assume unit object scale and read world-space
+    rotation. Nested CAD parents and non-unit object scale (e.g. 0.1) break
+    liquid generation because absolute thresholds in the fill nodes operate on
+    scaled geometry (empirically: fill works at scale 0.025 but not 0.1 in the
+    same scene). Applying rotation AND scale bakes them into the mesh so object
+    scale becomes (1,1,1) with NO visible change, giving the nodes true-size
+    geometry.
 
-    Scale is deliberately NOT applied: models are often authored at a non-unit
-    scale (e.g. 0.1), the liquid proxy inherits the bottle's scale, and
-    transform_apply does not compensate child matrix_parent_inverse -- applying
-    scale would resize the liquid and drag cork/label off the bottle.
+    Direct children (cork/label/liquid proxy) are snapshotted and their world
+    matrices restored after the apply, because transform_apply on a parent does
+    not compensate child matrix_parent_inverse.
 
     Note: child restore via matrix_world is exact for uniform object scale (the
     normal case). Non-uniform scale combined with a baked rotation can introduce
@@ -138,10 +143,10 @@ def bake_parent_transforms(context, obj__):
     if obj__.parent is not None:
         unparent_keep_transform(obj__)
         context.view_layer.update()
-    # Snapshot child world matrices: applying rotation to a parent does not fix
-    # child matrix_parent_inverse, so children would otherwise drift.
+    # Snapshot child world matrices: applying rotation/scale to a parent does not
+    # fix child matrix_parent_inverse, so children would otherwise drift.
     child_world = {child: child.matrix_world.copy() for child in obj__.children}
-    bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
     # Flush the depsgraph so the child restore reads the parent's freshly
     # evaluated matrix (child.matrix_world depends on it).
     context.view_layer.update()

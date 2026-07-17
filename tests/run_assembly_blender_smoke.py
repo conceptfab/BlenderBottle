@@ -154,7 +154,11 @@ def main():
     else:
         ok('bake_parent clears CAD parent, keeps assembly children')
 
-    # --- Regression: scale preserved + children not dragged on bake ---
+    # --- Regression: bake FREEZES scale to 1:1 with no visible change and
+    #     without dragging children (fill nodes require unit object scale) ---
+    def world_verts(o):
+        return [(o.matrix_world @ v.co).copy() for v in o.data.vertices]
+
     scaled = mesh_obj('ScaledBottle', (2, 0, 0))
     scaled.scale = (0.1, 0.1, 0.1)
     bpy.context.view_layer.update()
@@ -173,16 +177,25 @@ def main():
     root.rotation_euler.z = math.radians(30)
     bpy.context.view_layer.update()
 
+    verts_before = world_verts(scaled)
     cork_world_before = scap.matrix_world.translation.copy()
     select_active(scaled)
     if 'FINISHED' not in bpy.ops.liquifeel.bake_parent_transforms():
         fail('bake on scaled bottle failed')
     bpy.context.view_layer.update()
 
-    if abs(scaled.scale.x - 0.1) > 1e-4:
-        fail(f'Bottle scale was baked away: scale.x={scaled.scale.x} (expected 0.1)')
+    if abs(scaled.scale.x - 1.0) > 1e-4 or abs(scaled.scale.z - 1.0) > 1e-4:
+        fail(f'Bottle scale not frozen to 1:1: scale={tuple(scaled.scale)}')
     else:
-        ok('Bottle scale 0.1 preserved through bake')
+        ok('Bottle scale frozen to 1:1 through bake')
+
+    verts_after = world_verts(scaled)
+    max_drift = max(((a - b).length for a, b in zip(verts_before, verts_after)),
+                    default=0.0)
+    if max_drift > 1e-4:
+        fail(f'Bottle appearance changed on bake: max world-vert drift={max_drift}')
+    else:
+        ok('Bottle appearance preserved through freeze (no physical change)')
 
     cork_world_after = scap.matrix_world.translation.copy()
     if (cork_world_after - cork_world_before).length > 1e-3:
