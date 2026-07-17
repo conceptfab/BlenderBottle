@@ -67,6 +67,11 @@ class FakeObject:
 
 
 class AssemblyHelperTests(unittest.TestCase):
+    """API-presence checks only (the addon can't import without Blender).
+
+    Real behavioral coverage of assembly/scale logic lives in
+    tests/run_assembly_blender_smoke.py -- run that under `blender --background`.
+    """
     @classmethod
     def setUpClass(cls):
         _install_bpy_stub()
@@ -105,16 +110,6 @@ class AssemblyHelperTests(unittest.TestCase):
         src = (self.root / '__init__.py').read_text(encoding='utf-8')
         self.assertIn('if has_assembly(obj__):', src)
         self.assertIn('_lqfl_strip_fill_keys_keep_assembly(obj__)', src)
-
-    def test_parent_keep_transform_contract(self):
-        bottle = FakeObject('Bottle')
-        cork = FakeObject('Cork')
-        mw = cork.matrix_world
-        cork.parent = bottle
-        cork.matrix_world = mw
-        bottle.children.append(cork)
-        self.assertIs(cork.parent, bottle)
-        self.assertEqual(cork.matrix_world, 'mw:Cork')
 
 
 if __name__ == '__main__':

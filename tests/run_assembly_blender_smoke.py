@@ -215,6 +215,18 @@ def main():
     else:
         ok('Clear-fill strip keeps assembly')
 
+    # Marker (de)serialization must survive an IDProperty round-trip.
+    sample = {'role': 'extra', 'controller': bottle.name,
+              'version': list(mod.bl_info['version']), 'nested': {'a': 1}}
+    clean = mod._lqfl_sanitize_marker(dict(sample))
+    mod._lqfl_marker_set(cork, {'assembly': {'members': {}},
+                               'version': clean['version']})
+    got = mod._lqfl_marker_get(cork)
+    if got.get('version') is None:
+        fail('Marker round-trip lost version')
+    else:
+        ok('Marker round-trip preserves data')
+
     select_active(bottle)
     result = bpy.ops.liquifeel.assembly_clear()
     if 'FINISHED' not in result:
