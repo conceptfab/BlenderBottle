@@ -12098,14 +12098,99 @@ def add_condensation_to_active_object(context, obj__):
     obj__['liquifeel']['condensation'] = True
     set_geonode_mod_input(obj__, 'Condensation_V1.0', 'Condensation', 'bool', True)
 
+def _object_world_size(obj__):
+    """World-space AABB size (max axis), used to guess mesh length units."""
+    try:
+        corners = [obj__.matrix_world @ mathutils.Vector(c)
+                   for c in obj__.bound_box]
+        xs = [c.x for c in corners]
+        ys = [c.y for c in corners]
+        zs = [c.z for c in corners]
+        return max(
+            max(xs) - min(xs),
+            max(ys) - min(ys),
+            max(zs) - min(zs),
+        )
+    except Exception:
+        return 0.0
+
+
+def _mesh_mm_unit_factor(obj__):
+    """Factor so that (1 * factor) ≈ 1mm in mesh Blender-units.
+
+    Select Outer hardcodes Lip Threshold * 0.001 (1mm when mesh is in meters).
+    CAD scenes often store mm or cm as Blender units — then that constant is
+    wrong and lip/opening selection (and therefore liquid height range) breaks,
+    which makes the Liquid Level % slider look like it 'works in another scale'.
+    """
+    size = _object_world_size(obj__)
+    if size <= 1e-8:
+        return 0.001
+    # Typical 500ml bottle: ~0.2m, ~20cm, or ~200mm depending on authoring unit.
+    if size > 50.0:
+        return 1.0       # mesh likely in millimeters
+    if size > 3.0:
+        return 0.1       # mesh likely in centimeters
+    return 0.001         # mesh likely in meters
+
+
+def _patch_select_outer_lip_unit_scale(factor):
+    """Rewrite the hardcoded Lip Threshold * 0.001 Math in nested Select Outer."""
+    try:
+        outer = bpy.data.node_groups.get(SELECT_OUTER_NG_NAME)
+        if outer is None:
+            return False
+        # LiquiFeel_Select Outer → Group → node tree "Select Outer"
+        inner = None
+        for n in outer.nodes:
+            if n.type == 'GROUP' and n.node_tree is not None:
+                inner = n.node_tree
+                break
+        if inner is None:
+            inner = bpy.data.node_groups.get('Select Outer')
+        if inner is None:
+            return False
+        patched = False
+        for n in inner.nodes:
+            if n.type != 'MATH' or getattr(n, 'operation', None) != 'MULTIPLY':
+                continue
+            # Lip path: linked Value * constant (~0.001 default in assets)
+            linked = [inp for inp in n.inputs if inp.is_linked]
+            unlinked = [inp for inp in n.inputs
+                        if (not inp.is_linked)
+                        and isinstance(getattr(inp, 'default_value', None),
+                                       (int, float))]
+            if len(linked) < 1 or not unlinked:
+                continue
+            const_inp = unlinked[0]
+            old = float(const_inp.default_value)
+            # Only retune the known mm-scale constant (or a previously patched one).
+            if abs(old - 0.001) < 1e-6 or abs(old - 0.1) < 1e-6 or abs(old - 1.0) < 1e-6 or abs(old - float(factor)) < 1e-9:
+                const_inp.default_value = float(factor)
+                patched = True
+        return patched
+    except Exception:
+        return False
+
+
 def assign_fill_default_vals(context, obj__):
     obj__ = context.active_object
     prop_parent = obj__.hrdc_liquifeel_input_field_props.geometry
+    # Retune Select Outer lip mm-factor to the mesh's length unit BEFORE setting
+    # defaults — otherwise Lip Threshold=1 is ~1000× too small/large and the
+    # liquid height Map Range collapses to a tiny band.
+    lip_mm = _mesh_mm_unit_factor(obj__)
+    _patch_select_outer_lip_unit_scale(lip_mm)
+    try:
+        obj__['liquifeel_lip_mm_factor'] = float(lip_mm)
+    except Exception:
+        pass
     # dddd : prop : Opening Shape : opening_shape
     set_prop_value(prop_parent, 'opening_shape', 'straight', 'string')
     # dddd : GeoNode : SELECT_OUTER_NG_NAME : Lip Threshold : lip_threshold
     set_geonode_mod_input(obj__, SELECT_OUTER_NG_NAME, 'Lip Threshold', 'float', 1.0)
     # dddd : GeoNode : FILL_NG_NAME : Liquid Level : liquid_level
+    # Socket is 0–100 (% of bottle Z range inside the fill GN Map Range).
     set_geonode_mod_input(
         obj__, FILL_NG_NAME, 'Liquid Level', 'float', 50.0)
     # dddd : GeoNode : FILL_NG_NAME : Meniscus Type : meniscus_type
@@ -13023,6 +13108,23 @@ def build_liquifeel_diagnostics(context):
             f"tallest_world={orient['tallest_world_axis']} "
             f"local_z_dot_world_z={orient['local_z_dot_world_z']} "
             f"local_z_world_dir={tuple(orient['local_z_world_dir'])}")
+        # Liquid Level is 0–100% of bottle Z; Select Outer lip uses a mm factor.
+        try:
+            lip_mm = float(obj__.get('liquifeel_lip_mm_factor',
+                                     _mesh_mm_unit_factor(obj__)))
+        except Exception:
+            lip_mm = _mesh_mm_unit_factor(obj__)
+        world_size = _object_world_size(obj__)
+        lines.append(
+            f"Fill scale: world_size={round(world_size, 4)} "
+            f"lip_mm_factor={lip_mm} "
+            f"(Select Outer uses LipThreshold*{lip_mm} as mesh offset; "
+            f"Liquid Level socket is 0-100% of bottle height)")
+        try:
+            lvl = get_geonodes_mod_input_val(obj__, FILL_NG_NAME, 'Liquid Level')
+            lines.append(f"Liquid Level (live): {lvl}  (0-100% of fill height range)")
+        except Exception:
+            lines.append('Liquid Level (live): unavailable (no fill modifier)')
         chain = []
         _p = obj__.parent
         while _p is not None:
@@ -16427,9 +16529,10 @@ def hrdc_draw_shader_controls(context, shading_modality_key, obj__, library_key,
         obj__, mat__, shading_modality_key, context, root_layout)
 
 def draw_liquid_amount_slider(obj__, root_layout):
-    fill_mod = get_geonodes_mod_by_ng_name(obj__, FILL_NG_NAME)
-    liquid_amount_input_identifier = get_geonodes_field_identifier(fill_mod, 'Liquid Level')
-    root_layout.prop(fill_mod, f'["{liquid_amount_input_identifier}"]', text='Liquid Level')
+    # Blender 5.x stores GN inputs on mod.properties.inputs — the legacy
+    # mod["SocketName"] path is a no-op / wrong scale. Reuse the shared drawer.
+    draw_geonodes_mod_prop(
+        obj__, FILL_NG_NAME, 'Liquid Level', root_layout, text='Liquid Amount')
 
 def hrdc_draw_shading_ui__(shading_modality_key, context, root_layout):  # !!! To be customized into the hardcoded-ui version
     obj__ = resolve_liquifeel_source_object(context.active_object)
