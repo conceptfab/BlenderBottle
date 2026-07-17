@@ -1,0 +1,201 @@
+"""Blender background smoke test for Bottle Assembly.
+
+Usage:
+  /path/to/Blender --background --python tests/run_assembly_blender_smoke.py
+"""
+from __future__ import annotations
+
+import math
+import sys
+import traceback
+from pathlib import Path
+
+import bpy
+
+ADDON_DIR = Path(__file__).resolve().parents[1]
+ERRORS = []
+
+
+def ok(msg):
+    print(f'OK: {msg}')
+
+
+def fail(msg):
+    print(f'FAIL: {msg}')
+    ERRORS.append(msg)
+
+
+def load_addon():
+    parent = str(ADDON_DIR.parent)
+    if parent not in sys.path:
+        sys.path.insert(0, parent)
+    # Folder name is LiquiFeel — import as package so relative imports work.
+    import LiquiFeel as mod
+    try:
+        mod.unregister()
+    except Exception:
+        pass
+    mod.register()
+    return mod
+
+
+def mesh_obj(name, loc=(0, 0, 0)):
+    mesh = bpy.data.meshes.new(name + '_Mesh')
+    mesh.from_pydata(
+        [(-0.1, -0.1, 0), (0.1, -0.1, 0), (0.1, 0.1, 0), (-0.1, 0.1, 0),
+         (-0.1, -0.1, 0.5), (0.1, -0.1, 0.5), (0.1, 0.1, 0.5), (-0.1, 0.1, 0.5)],
+        [],
+        [(0, 1, 2, 3), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5),
+         (2, 3, 7, 6), (3, 0, 4, 7)],
+    )
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    obj.location = loc
+    return obj
+
+
+def select_active(obj, also=None):
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True)
+    if also:
+        for o in also:
+            o.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+
+
+def main():
+    print('=== LiquiFeel Bottle Assembly smoke test ===')
+    print('Addon dir:', ADDON_DIR)
+    bpy.ops.object.select_all(action='SELECT')
+    bpy.ops.object.delete(use_global=False)
+
+    try:
+        mod = load_addon()
+    except Exception:
+        traceback.print_exc()
+        fail('Addon failed to load/register')
+        _finish(1)
+        return
+
+    bottle = mesh_obj('Bottle', (0, 0, 0))
+    cork = mesh_obj('Cork', (0, 0, 0.6))
+    label = mesh_obj('Label', (0.15, 0, 0.25))
+    extra = mesh_obj('Extra', (-0.15, 0, 0.25))
+
+    select_active(bottle)
+    result = bpy.ops.liquifeel.assembly_set_bottle()
+    if 'FINISHED' not in result:
+        fail(f'Set as Bottle: {result}')
+    elif not mod.has_assembly(bottle):
+        fail('Bottle missing assembly marker after Set as Bottle')
+    else:
+        ok('Set as Bottle')
+
+    select_active(cork)
+    result = bpy.ops.liquifeel.assembly_assign_cork()
+    if 'FINISHED' not in result:
+        fail(f'Assign cork: {result}')
+    elif cork.parent != bottle:
+        fail(f'Cork parent is {cork.parent!r}, expected bottle')
+    else:
+        ok('Assign cork (parented)')
+
+    select_active(label)
+    result = bpy.ops.liquifeel.assembly_assign_label()
+    if 'FINISHED' not in result or label.parent != bottle:
+        fail(f'Assign label failed: {result}, parent={label.parent}')
+    else:
+        ok('Assign label')
+
+    select_active(extra)
+    result = bpy.ops.liquifeel.assembly_add_extra()
+    if 'FINISHED' not in result or extra.parent != bottle:
+        fail(f'Add extra failed: {result}, parent={extra.parent}')
+    else:
+        ok('Add extra')
+
+    members = mod.list_assembly_member_objects(bottle)
+    if len(members) != 3:
+        fail(f'Expected 3 members, got {len(members)}: {[m.name for m in members]}')
+    else:
+        ok('3 children linked in marker')
+
+    cork_before = cork.matrix_world.translation.copy()
+    bottle.location.z += 1.0
+    bpy.context.view_layer.update()
+    cork_after = cork.matrix_world.translation.copy()
+    if abs((cork_after.z - cork_before.z) - 1.0) > 1e-4:
+        fail(f'Cork did not follow bottle move: dz={cork_after.z - cork_before.z}')
+    else:
+        ok('Children follow bottle translate')
+
+    bottle.rotation_euler.z = math.radians(45)
+    bpy.context.view_layer.update()
+    if cork.parent != bottle:
+        fail('Cork lost parent after bottle rotate')
+    else:
+        ok('Parent retained after bottle rotate')
+
+    cad = bpy.data.objects.new('CAD_Root', None)
+    bpy.context.collection.objects.link(cad)
+    mw = bottle.matrix_world.copy()
+    bottle.parent = cad
+    bottle.matrix_world = mw
+    bpy.context.view_layer.update()
+    select_active(bottle)
+    result = bpy.ops.liquifeel.bake_parent_transforms()
+    if 'FINISHED' not in result:
+        fail(f'bake_parent_transforms: {result}')
+    elif bottle.parent is not None:
+        fail('Bottle still has parent after bake')
+    elif cork.parent != bottle or label.parent != bottle or extra.parent != bottle:
+        fail('Assembly children lost after bake_parent_transforms')
+    else:
+        ok('bake_parent clears CAD parent, keeps assembly children')
+
+    marker = dict(mod._lqfl_marker_get(bottle))
+    marker['filled'] = True
+    marker['separate_liquid'] = 'dummy'
+    mod._lqfl_marker_set(bottle, marker)
+    mod._lqfl_strip_fill_keys_keep_assembly(bottle)
+    if not mod.has_assembly(bottle):
+        fail('Assembly lost after strip fill keys')
+    elif 'filled' in mod._lqfl_marker_get(bottle):
+        fail('filled key still present after strip')
+    else:
+        ok('Clear-fill strip keeps assembly')
+
+    select_active(bottle)
+    result = bpy.ops.liquifeel.assembly_clear()
+    if 'FINISHED' not in result:
+        fail(f'Clear assembly: {result}')
+    elif mod.has_assembly(bottle):
+        fail('Assembly marker still present after clear')
+    elif cork.parent is not None or label.parent is not None or extra.parent is not None:
+        fail('Members still parented after Clear Assembly')
+    elif cork.name not in bpy.data.objects:
+        fail('Cork object deleted by Clear Assembly')
+    else:
+        ok('Clear Assembly unparents and keeps meshes')
+
+    _finish(1 if ERRORS else 0)
+
+
+def _finish(code):
+    print('=== DONE ===')
+    if ERRORS:
+        print(f'{len(ERRORS)} failure(s):')
+        for e in ERRORS:
+            print(' -', e)
+    else:
+        print('All assembly smoke checks passed.')
+    sys.exit(code)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception:
+        traceback.print_exc()
+        sys.exit(1)

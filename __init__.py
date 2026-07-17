@@ -10,7 +10,7 @@ bl_info = {
 }
 
 # bumped on every local patch, shown in diagnostics to verify which build runs
-ADDON_BUILD_TAG = 'blender52-port-r15'
+ADDON_BUILD_TAG = 'blender52-port-r27'
 
 import bpy
 import mathutils
@@ -130,6 +130,23 @@ def bake_parent_transforms(context, obj__):
         obj__.matrix_world = mw
         context.view_layer.update()
     bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+
+def prepare_bottle_world_pose(context, obj__):
+    """If bottle sits under a parent: unparent Keep Transform + apply rot/scale.
+
+    Same work as the old separate 'Unparent & Apply Transforms' button —
+    folded into Set Bottle / Bottle drop. Returns (ok, err).
+    """
+    if obj__ is None or obj__.type != 'MESH':
+        return False, 'Not a mesh.'
+    if (obj__.library or obj__.override_library
+            or (obj__.data is not None and obj__.data.library)):
+        return (
+            False,
+            f"'{obj__.name}' is linked from another file. Make it local first.")
+    if obj__.parent is not None:
+        bake_parent_transforms(context, obj__)
+    return True, ''
 
 ## WEB -------------
 
@@ -7099,6 +7116,30 @@ preview_data = {
     'ids': preview_img_ids
 }
 
+def preview_icon_id(key):
+    """Custom preview icon id, or 0 if missing/unloaded.
+
+    Never pass 0 as UILayout.operator(..., icon_value=0) — Blender 5.x
+    treats that as an invalid custom icon and aborts the whole panel draw.
+    """
+    try:
+        return int(preview_data['ids']['icons'].get(key, 0) or 0)
+    except Exception:
+        return 0
+
+def layout_operator_with_preview(
+        layout, bl_idname, *, text='', icon_key=None, fallback_icon='NONE',
+        **kwargs):
+    """Like layout.operator(), but skips icon_value when the preview id is 0."""
+    if icon_key:
+        icon_id = preview_icon_id(icon_key)
+        if icon_id:
+            return layout.operator(
+                bl_idname, text=text, icon_value=icon_id, **kwargs)
+        return layout.operator(
+            bl_idname, text=text, icon=fallback_icon, **kwargs)
+    return layout.operator(bl_idname, text=text, **kwargs)
+
 # print()
 # print('preview_data')
 # pprint(preview_data)
@@ -7870,8 +7911,60 @@ def _lqfl_marker_get(obj__):
     except Exception:
         return {}
 
+def _lqfl_sanitize_marker(data):
+    """Convert marker data to IDProperty-safe plain Python types."""
+    if not data:
+        return {'version': list(bl_info['version'])}
+    try:
+        raw = dict(data)
+    except Exception:
+        raw = {}
+    out = {}
+    for key, val in raw.items():
+        if key == 'assembly':
+            out[key] = _normalize_assembly_dict(val)
+            continue
+        if key == 'version':
+            if hasattr(val, 'to_list'):
+                out[key] = [int(x) for x in val.to_list()]
+            elif isinstance(val, (tuple, list)):
+                out[key] = [int(x) for x in val]
+            else:
+                out[key] = list(bl_info['version'])
+            continue
+        if isinstance(val, (str, bool, int, float)):
+            out[key] = val
+            continue
+        if hasattr(val, 'to_dict'):
+            try:
+                out[key] = dict(val.to_dict())
+                continue
+            except Exception:
+                pass
+        if hasattr(val, 'to_list'):
+            try:
+                out[key] = list(val.to_list())
+                continue
+            except Exception:
+                pass
+        # Drop values Blender cannot store on IDProperties.
+    if 'version' not in out:
+        out['version'] = list(bl_info['version'])
+    return out
+
 def _lqfl_marker_set(obj__, data):
-    obj__['liquifeel'] = data
+    clean = _lqfl_sanitize_marker(data)
+    # Replace (don't mutate in place) — avoids Blender 5.x
+    # "Error setting Object.liquifeel" when the existing group type conflicts.
+    try:
+        if 'liquifeel' in obj__.keys():
+            del obj__['liquifeel']
+    except Exception:
+        try:
+            obj__.pop('liquifeel', None)
+        except Exception:
+            pass
+    obj__['liquifeel'] = clean
 
 def is_liquid_proxy_object(obj__):
     return _lqfl_marker_get(obj__).get('role') == LIQUID_PROXY_ROLE
@@ -7888,6 +7981,837 @@ def resolve_liquifeel_source_object(obj__):
         if obj__.parent is not None:
             return obj__.parent
     return obj__
+
+## BOTTLE ASSEMBLY (controller = bottle parent) -----------------------------
+
+ASSEMBLY_ROLE_CORK = 'cork'
+ASSEMBLY_ROLE_LABEL = 'label'
+ASSEMBLY_ROLE_EXTRA = 'extra'
+ASSEMBLY_MEMBER_ROLES = {
+    ASSEMBLY_ROLE_CORK, ASSEMBLY_ROLE_LABEL, ASSEMBLY_ROLE_EXTRA,
+}
+
+def _normalize_assembly_dict(asm):
+    if asm is None:
+        return {'cork': '', 'label': '', 'extras': []}
+    if hasattr(asm, 'to_dict'):
+        d = asm.to_dict()
+    else:
+        try:
+            d = dict(asm)
+        except Exception:
+            return {'cork': '', 'label': '', 'extras': []}
+    extras = d.get('extras', [])
+    if hasattr(extras, 'to_list'):
+        extras = list(extras)
+    elif extras is None:
+        extras = []
+    else:
+        extras = list(extras)
+    return {
+        'cork': str(d.get('cork') or ''),
+        'label': str(d.get('label') or ''),
+        'extras': [str(x) for x in extras if x],
+    }
+
+def get_assembly_dict(obj__):
+    if obj__ is None:
+        return None
+    marker = _lqfl_marker_get(obj__)
+    if 'assembly' not in marker:
+        return None
+    return _normalize_assembly_dict(marker.get('assembly'))
+
+def has_assembly(obj__):
+    return get_assembly_dict(obj__) is not None
+
+def set_assembly_dict(obj__, assembly):
+    marker = dict(_lqfl_marker_get(obj__)) if _lqfl_marker_get(obj__) else {}
+    if 'version' not in marker:
+        marker['version'] = list(bl_info['version'])
+    marker['assembly'] = _normalize_assembly_dict(assembly)
+    _lqfl_marker_set(obj__, marker)
+
+def clear_assembly_dict(obj__):
+    marker = dict(_lqfl_marker_get(obj__))
+    if not marker:
+        return
+    marker.pop('assembly', None)
+    if set(marker.keys()) <= {'version'}:
+        maybe_remove_lqfl_object_tags(obj__)
+    else:
+        _lqfl_marker_set(obj__, marker)
+
+def _lqfl_strip_fill_keys_keep_assembly(obj__):
+    """Drop fill-related marker keys; keep assembly (+ version) if present."""
+    marker = _lqfl_marker_get(obj__)
+    if not marker:
+        maybe_remove_lqfl_object_tags(obj__)
+        return
+    marker = dict(marker)
+    asm = None
+    if 'assembly' in marker:
+        asm = _normalize_assembly_dict(marker.get('assembly'))
+    marker.pop('filled', None)
+    marker.pop('fill_shading', None)
+    marker.pop('separate_liquid', None)
+    if asm is not None:
+        marker['assembly'] = asm
+        if 'version' not in marker:
+            marker['version'] = bl_info['version']
+        _lqfl_marker_set(obj__, marker)
+        return
+    if set(marker.keys()) <= {'version'}:
+        maybe_remove_lqfl_object_tags(obj__)
+    else:
+        _lqfl_marker_set(obj__, marker)
+
+def parent_keep_transform(child, parent):
+    mw = child.matrix_world.copy()
+    child.parent = parent
+    child.matrix_world = mw
+
+def unparent_keep_transform(child):
+    if child.parent is None:
+        return
+    mw = child.matrix_world.copy()
+    child.parent = None
+    child.matrix_world = mw
+
+def is_assembly_member_object(obj__):
+    if obj__ is None or is_liquid_proxy_object(obj__):
+        return False
+    role = _lqfl_marker_get(obj__).get('role')
+    return role in ASSEMBLY_MEMBER_ROLES
+
+def resolve_assembly_controller_object(obj__):
+    """Map an assembly member (or bottle) to the bottle controller."""
+    if obj__ is None:
+        return None
+    if is_liquid_proxy_object(obj__):
+        obj__ = resolve_liquifeel_source_object(obj__)
+        if obj__ is None:
+            return None
+    if has_assembly(obj__):
+        return obj__
+    marker = _lqfl_marker_get(obj__)
+    if marker.get('role') in ASSEMBLY_MEMBER_ROLES:
+        name = marker.get('controller')
+        if name and name in bpy.data.objects:
+            ctrl = bpy.data.objects[name]
+            if has_assembly(ctrl):
+                return ctrl
+        if obj__.parent is not None and has_assembly(obj__.parent):
+            return obj__.parent
+    if obj__.parent is not None and has_assembly(obj__.parent):
+        return obj__.parent
+    return None
+
+def _set_member_marker(member, role, controller):
+    marker = dict(_lqfl_marker_get(member)) if _lqfl_marker_get(member) else {}
+    if 'version' not in marker:
+        marker['version'] = bl_info['version']
+    marker['role'] = role
+    marker['controller'] = controller.name
+    _lqfl_marker_set(member, marker)
+
+def _clear_member_marker(member):
+    marker = dict(_lqfl_marker_get(member))
+    if not marker:
+        return
+    marker.pop('role', None)
+    marker.pop('controller', None)
+    if set(marker.keys()) <= {'version'}:
+        maybe_remove_lqfl_object_tags(member)
+    else:
+        _lqfl_marker_set(member, marker)
+
+def _lookup_object_by_name(name):
+    if not name:
+        return None
+    return bpy.data.objects.get(name)
+
+def _find_child_member_by_role(controller, role):
+    for child in controller.children:
+        if is_liquid_proxy_object(child):
+            continue
+        if _lqfl_marker_get(child).get('role') == role:
+            if _lqfl_marker_get(child).get('controller') in (controller.name, None, ''):
+                return child
+            if _lqfl_marker_get(child).get('controller') == controller.name:
+                return child
+    for child in controller.children:
+        if is_liquid_proxy_object(child):
+            continue
+        if _lqfl_marker_get(child).get('role') == role:
+            return child
+    return None
+
+def resolve_assembly_cork(controller):
+    asm = get_assembly_dict(controller)
+    if asm is None:
+        return None
+    obj__ = _lookup_object_by_name(asm.get('cork'))
+    if obj__ is not None and (
+            obj__.parent == controller
+            or _lqfl_marker_get(obj__).get('controller') == controller.name):
+        return obj__
+    return _find_child_member_by_role(controller, ASSEMBLY_ROLE_CORK)
+
+def resolve_assembly_label(controller):
+    asm = get_assembly_dict(controller)
+    if asm is None:
+        return None
+    obj__ = _lookup_object_by_name(asm.get('label'))
+    if obj__ is not None and (
+            obj__.parent == controller
+            or _lqfl_marker_get(obj__).get('controller') == controller.name):
+        return obj__
+    return _find_child_member_by_role(controller, ASSEMBLY_ROLE_LABEL)
+
+def resolve_assembly_extras(controller):
+    asm = get_assembly_dict(controller)
+    if asm is None:
+        return []
+    found = []
+    seen = set()
+    for name in asm.get('extras', []):
+        obj__ = _lookup_object_by_name(name)
+        if obj__ is None or obj__ in seen:
+            continue
+        if (obj__.parent == controller
+                or _lqfl_marker_get(obj__).get('controller') == controller.name):
+            found.append(obj__)
+            seen.add(obj__)
+    for child in controller.children:
+        if child in seen or is_liquid_proxy_object(child):
+            continue
+        if _lqfl_marker_get(child).get('role') == ASSEMBLY_ROLE_EXTRA:
+            found.append(child)
+            seen.add(child)
+    return found
+
+def list_assembly_member_objects(controller):
+    """Cork, label, extras (not liquid proxy)."""
+    members = []
+    cork = resolve_assembly_cork(controller)
+    label = resolve_assembly_label(controller)
+    if cork is not None:
+        members.append(cork)
+    if label is not None and label not in members:
+        members.append(label)
+    for extra in resolve_assembly_extras(controller):
+        if extra not in members:
+            members.append(extra)
+    return members
+
+def _is_assembly_hide_exempt(ob, controller=None):
+    """Never hide the bottle itself or the liquid proxy."""
+    if ob is None:
+        return True
+    if controller is not None and ob == controller:
+        return True
+    if is_liquid_proxy_object(ob):
+        return True
+    name = getattr(ob, 'name', '') or ''
+    if name.endswith('_liquid') or '_liquid.' in name:
+        return True
+    return False
+
+def iter_assembly_hide_subtree(root):
+    """Root + all descendants. Cork/label often keep child meshes — parent-only hide leaves them visible."""
+    if root is None:
+        return
+    stack = [root]
+    seen = set()
+    while stack:
+        ob = stack.pop()
+        if ob is None or ob in seen:
+            continue
+        seen.add(ob)
+        yield ob
+        try:
+            stack.extend(list(ob.children))
+        except Exception:
+            pass
+
+def _set_object_viewport_hidden(ob, hidden, view_layer=None):
+    """Force Outliner eye + Disable-in-Viewports. Returns True if applied."""
+    if ob is None:
+        return False
+    hidden = bool(hidden)
+    ok = False
+    try:
+        ob.hide_viewport = hidden
+        ok = True
+    except Exception:
+        pass
+    try:
+        if view_layer is not None:
+            try:
+                ob.hide_set(hidden, view_layer=view_layer)
+            except TypeError:
+                ob.hide_set(hidden)
+        else:
+            ob.hide_set(hidden)
+        ok = True
+    except Exception:
+        pass
+    return ok
+
+def collect_assembly_hide_roots(controller, context=None):
+    """Everything under the bottle that is not the liquid — markers + children + UI slots."""
+    roots = []
+    seen = set()
+
+    def add(ob):
+        if ob is None or ob in seen:
+            return
+        if _is_assembly_hide_exempt(ob, controller):
+            return
+        roots.append(ob)
+        seen.add(ob)
+
+    if controller is not None:
+        for member in list_assembly_member_objects(controller):
+            add(member)
+        # Parenting is source of truth: cork/front sit as children after Add
+        try:
+            for child in controller.children:
+                add(child)
+        except Exception:
+            pass
+    if context is not None:
+        try:
+            for item in context.scene.liquifeel_general_controls.assembly_parts:
+                add(item.object)
+        except Exception:
+            pass
+    return roots
+
+def set_assembly_parts_hidden(controller, hidden, context=None):
+    """Hide/show cork + label + extras (+ their children). Bottle + liquid stay visible."""
+    if controller is None:
+        return 0
+    view_layer = getattr(context, 'view_layer', None) if context else None
+    n = 0
+    for root in collect_assembly_hide_roots(controller, context):
+        for ob in iter_assembly_hide_subtree(root):
+            if _is_assembly_hide_exempt(ob, controller):
+                continue
+            if _set_object_viewport_hidden(ob, hidden, view_layer=view_layer):
+                n += 1
+    return n
+
+def set_all_scene_assembly_parts_hidden(context, hidden):
+    """Hide extras on every bottle assembly in the file (NORU 100/150/300/500…)."""
+    total = 0
+    seen_ctrl = set()
+    for obj__ in bpy.data.objects:
+        if obj__ is None or obj__ in seen_ctrl:
+            continue
+        if not has_assembly(obj__):
+            continue
+        seen_ctrl.add(obj__)
+        total += set_assembly_parts_hidden(obj__, hidden, context=context)
+    # Also any orphaned assembly-tagged parts
+    view_layer = getattr(context, 'view_layer', None) if context else None
+    for obj__ in bpy.data.objects:
+        if not is_assembly_member_object(obj__):
+            continue
+        for ob in iter_assembly_hide_subtree(obj__):
+            if _is_assembly_hide_exempt(ob):
+                continue
+            if _set_object_viewport_hidden(ob, hidden, view_layer=view_layer):
+                total += 1
+    return total
+
+def apply_assembly_hide_state(context, hidden):
+    """Single entry: apply Hide Extras across the scene. Returns count touched."""
+    n = set_all_scene_assembly_parts_hidden(context, hidden)
+    bottle = None
+    try:
+        bottle = context.scene.liquifeel_general_controls.assembly_bottle
+    except Exception:
+        bottle = None
+    if bottle is None:
+        bottle = get_scene_assembly_bottle(context)
+    if bottle is not None and has_assembly(bottle):
+        n += set_assembly_parts_hidden(bottle, hidden, context=context)
+    try:
+        for area in context.screen.areas:
+            if area.type == 'VIEW_3D':
+                area.tag_redraw()
+            if area.type == 'OUTLINER':
+                area.tag_redraw()
+    except Exception:
+        pass
+    try:
+        context.view_layer.update()
+    except Exception:
+        pass
+    return n
+
+def assembly_hide_extras_update(self, context):
+    apply_assembly_hide_state(context, bool(self.assembly_hide_extras))
+
+def apply_assembly_hide_extras_if_enabled(context, controller, member=None):
+    """Keep newly linked parts hidden when Hide Extras is on."""
+    try:
+        hide = bool(context.scene.liquifeel_general_controls.assembly_hide_extras)
+    except Exception:
+        return
+    if not hide:
+        return
+    view_layer = getattr(context, 'view_layer', None)
+    if member is not None:
+        for ob in iter_assembly_hide_subtree(member):
+            if _is_assembly_hide_exempt(ob, controller):
+                continue
+            _set_object_viewport_hidden(ob, True, view_layer=view_layer)
+    else:
+        set_assembly_parts_hidden(controller, True, context=context)
+
+def sync_assembly_marker_names(controller):
+    """Rewrite assembly name slots from currently resolved members."""
+    if not has_assembly(controller):
+        return
+    cork = resolve_assembly_cork(controller)
+    label = resolve_assembly_label(controller)
+    extras = resolve_assembly_extras(controller)
+    set_assembly_dict(controller, {
+        'cork': cork.name if cork else '',
+        'label': label.name if label else '',
+        'extras': [e.name for e in extras],
+    })
+
+def _detach_assembly_member(member):
+    if member is None:
+        return
+    unparent_keep_transform(member)
+    _clear_member_marker(member)
+
+def ensure_assembly_controller(obj__):
+    """Mark mesh as bottle controller with an empty assembly if needed."""
+    if not has_assembly(obj__):
+        set_assembly_dict(obj__, {'cork': '', 'label': '', 'extras': []})
+    return obj__
+
+def validate_assembly_member_candidate(member, controller):
+    """Return (ok, error_message)."""
+    if member is None:
+        return False, 'No object to assign.'
+    if member == controller:
+        return False, 'Cannot assign the bottle to itself.'
+    if member.type != 'MESH' and member.type != 'EMPTY':
+        # Allow EMPTY for decorative extras; meshes for cork/label typically.
+        pass
+    if is_liquid_proxy_object(member):
+        return False, 'Cannot assign a liquid proxy as an assembly member.'
+    if has_assembly(member):
+        return False, f"'{member.name}' is already a bottle controller."
+    other = resolve_assembly_controller_object(member)
+    if other is not None and other != controller:
+        return False, (
+            f"'{member.name}' belongs to assembly '{other.name}'. "
+            'Clear that assembly membership first.')
+    return True, ''
+
+def assign_assembly_role(controller, member, role):
+    ok, err = validate_assembly_member_candidate(member, controller)
+    if not ok:
+        return False, err
+    ensure_assembly_controller(controller)
+    asm = get_assembly_dict(controller)
+    if role == ASSEMBLY_ROLE_CORK:
+        old = resolve_assembly_cork(controller)
+        if old is not None and old != member:
+            _detach_assembly_member(old)
+        parent_keep_transform(member, controller)
+        _set_member_marker(member, ASSEMBLY_ROLE_CORK, controller)
+        asm['cork'] = member.name
+        # Remove from extras/label if reassigned
+        if asm.get('label') == member.name:
+            asm['label'] = ''
+        asm['extras'] = [n for n in asm.get('extras', []) if n != member.name]
+    elif role == ASSEMBLY_ROLE_LABEL:
+        old = resolve_assembly_label(controller)
+        if old is not None and old != member:
+            _detach_assembly_member(old)
+        parent_keep_transform(member, controller)
+        _set_member_marker(member, ASSEMBLY_ROLE_LABEL, controller)
+        asm['label'] = member.name
+        if asm.get('cork') == member.name:
+            asm['cork'] = ''
+        asm['extras'] = [n for n in asm.get('extras', []) if n != member.name]
+    elif role == ASSEMBLY_ROLE_EXTRA:
+        parent_keep_transform(member, controller)
+        _set_member_marker(member, ASSEMBLY_ROLE_EXTRA, controller)
+        if asm.get('cork') == member.name:
+            asm['cork'] = ''
+        if asm.get('label') == member.name:
+            asm['label'] = ''
+        extras = list(asm.get('extras', []))
+        if member.name not in extras:
+            extras.append(member.name)
+        asm['extras'] = extras
+    else:
+        return False, f'Unknown assembly role: {role}'
+    set_assembly_dict(controller, asm)
+    sync_assembly_marker_names(controller)
+    return True, ''
+
+def collect_assembly_add_roots(context, controller):
+    """Hierarchy roots among selected objects (and active), excluding bottle."""
+    selected = [o for o in context.selected_objects if o is not None]
+    active = context.active_object
+    candidates = []
+    for o in selected:
+        if o != controller and o not in candidates:
+            candidates.append(o)
+    if active is not None and active != controller and active not in candidates:
+        candidates.append(active)
+    cand_set = set(candidates)
+    roots = [o for o in candidates if o.parent not in cand_set]
+    return roots
+
+def add_assembly_elements(controller, members):
+    """Parent all member roots to bottle as additional elements (no cork/label split)."""
+    if not members:
+        return 0, 'No objects to add.'
+    ensure_assembly_controller(controller)
+    added = 0
+    errors = []
+    for member in members:
+        ok, err = assign_assembly_role(controller, member, ASSEMBLY_ROLE_EXTRA)
+        if ok:
+            added += 1
+        else:
+            errors.append(f'{member.name}: {err}')
+    if added == 0:
+        return 0, '; '.join(errors) if errors else 'Nothing added.'
+    return added, ''
+
+_assembly_ui_lock = False
+
+def ensure_assembly_empty_drop_slot(context=None):
+    """Guarantee at least one empty PointerProperty drop target (never call from draw)."""
+    global _assembly_ui_lock
+    if _assembly_ui_lock:
+        return
+    try:
+        if context is None:
+            context = bpy.context
+        controls = context.scene.liquifeel_general_controls
+        parts = controls.assembly_parts
+        if len(parts) == 0 or parts[-1].object is not None:
+            _assembly_ui_lock = True
+            try:
+                parts.add()
+            finally:
+                _assembly_ui_lock = False
+    except Exception:
+        pass
+
+def _assembly_seed_drop_slots_timer():
+    """Deferred seed so Geometry → Assembly always has a drop field even with no selection."""
+    try:
+        ensure_assembly_empty_drop_slot(bpy.context)
+    except Exception:
+        pass
+    return None
+
+def schedule_assembly_drop_slot_seed():
+    try:
+        if not bpy.app.timers.is_registered(_assembly_seed_drop_slots_timer):
+            bpy.app.timers.register(_assembly_seed_drop_slots_timer, first_interval=0.01)
+    except Exception:
+        pass
+
+def sync_assembly_ui_slots(context, controller=None):
+    """Refresh Outliner-drop slots from the bottle's linked parts + one empty slot."""
+    global _assembly_ui_lock
+    if _assembly_ui_lock:
+        return
+    try:
+        controls = context.scene.liquifeel_general_controls
+    except Exception:
+        return
+    _assembly_ui_lock = True
+    try:
+        if controller is None:
+            controller = get_scene_assembly_bottle(context)
+        if controller is not None and has_assembly(controller):
+            if controls.assembly_bottle != controller:
+                controls.assembly_bottle = controller
+            members = list_assembly_member_objects(controller)
+        else:
+            members = []
+        parts = controls.assembly_parts
+        # Match filled slots to members
+        while len(parts) > len(members):
+            parts.remove(len(parts) - 1)
+        while len(parts) < len(members):
+            parts.add()
+        for i, member in enumerate(members):
+            if parts[i].object != member:
+                parts[i].object = member
+        # Always keep one empty drop target at the end
+        if len(parts) == 0 or parts[-1].object is not None:
+            parts.add()
+    except Exception:
+        pass
+    finally:
+        _assembly_ui_lock = False
+
+def _assembly_part_poll(self, obj):
+    if obj is None:
+        return False
+    if is_liquid_proxy_object(obj):
+        return False
+    bottle = None
+    try:
+        bottle = bpy.context.scene.liquifeel_general_controls.assembly_bottle
+    except Exception:
+        bottle = None
+    if bottle is not None and obj == bottle:
+        return False
+    return obj.type in {'MESH', 'EMPTY', 'CURVE', 'FONT'}
+
+def assembly_bottle_pointer_update(self, context):
+    global _assembly_ui_lock
+    if _assembly_ui_lock:
+        return
+    bottle = self.assembly_bottle
+    if bottle is None:
+        return
+    if bottle.type != 'MESH' or is_liquid_proxy_object(bottle):
+        return
+    try:
+        ok, err = prepare_bottle_world_pose(context, bottle)
+        if not ok:
+            print(f'LIQUIFEEL: assembly_bottle_pointer_update: {err}')
+            return
+        ensure_assembly_controller(bottle)
+        context.scene[SCENE_ASSEMBLY_BOTTLE_KEY] = bottle.name
+        sync_assembly_ui_slots(context, bottle)
+    except Exception as exc:
+        print(f'LIQUIFEEL: assembly_bottle_pointer_update: {exc}')
+
+def assembly_part_pointer_update(self, context):
+    """When user drops/picks an object into a slot — parent it to the bottle."""
+    global _assembly_ui_lock
+    if _assembly_ui_lock:
+        return
+    try:
+        controls = context.scene.liquifeel_general_controls
+    except Exception:
+        return
+    bottle = controls.assembly_bottle
+    if bottle is None or not has_assembly(bottle):
+        if bottle is not None and bottle.type == 'MESH':
+            try:
+                ensure_assembly_controller(bottle)
+            except Exception:
+                return
+        else:
+            return
+    obj__ = self.object
+    if obj__ is None:
+        # Cleared slot: detach any previous member that disappeared from slots
+        # Full resync from hierarchy is safer.
+        sync_assembly_ui_slots(context, bottle)
+        return
+    if obj__ == bottle or is_liquid_proxy_object(obj__):
+        _assembly_ui_lock = True
+        try:
+            self.object = None
+        finally:
+            _assembly_ui_lock = False
+        return
+    try:
+        ok, err = assign_assembly_role(bottle, obj__, ASSEMBLY_ROLE_EXTRA)
+        if not ok:
+            print(f'LIQUIFEEL: drop assign failed: {err}')
+            _assembly_ui_lock = True
+            try:
+                self.object = None
+            finally:
+                _assembly_ui_lock = False
+            return
+        apply_assembly_hide_extras_if_enabled(context, bottle, obj__)
+        set_scene_assembly_bottle(context, bottle)
+        sync_assembly_ui_slots(context, bottle)
+    except Exception as exc:
+        print(f'LIQUIFEEL: assembly_part_pointer_update: {exc}')
+
+def clear_assembly_role(controller, role, extra_name=None):
+    if not has_assembly(controller):
+        return False, 'Object has no assembly.'
+    asm = get_assembly_dict(controller)
+    if role == ASSEMBLY_ROLE_CORK:
+        _detach_assembly_member(resolve_assembly_cork(controller))
+        asm['cork'] = ''
+    elif role == ASSEMBLY_ROLE_LABEL:
+        _detach_assembly_member(resolve_assembly_label(controller))
+        asm['label'] = ''
+    elif role == ASSEMBLY_ROLE_EXTRA:
+        target = None
+        if extra_name:
+            target = _lookup_object_by_name(extra_name)
+        if target is None:
+            return False, 'Extra not found.'
+        _detach_assembly_member(target)
+        asm['extras'] = [n for n in asm.get('extras', []) if n != target.name]
+    else:
+        return False, f'Unknown assembly role: {role}'
+    set_assembly_dict(controller, asm)
+    sync_assembly_marker_names(controller)
+    return True, ''
+
+def clear_assembly(controller):
+    if not has_assembly(controller):
+        return False, 'Object has no assembly.'
+    for member in list_assembly_member_objects(controller):
+        _detach_assembly_member(member)
+    clear_assembly_dict(controller)
+    return True, ''
+
+SCENE_ASSEMBLY_BOTTLE_KEY = 'liquifeel_assembly_bottle'
+
+def get_scene_assembly_bottle(context):
+    # 1) PointerProperty (may be missing after script reload without restart)
+    try:
+        bottle = context.scene.liquifeel_general_controls.assembly_bottle
+        if bottle is not None and has_assembly(bottle):
+            return bottle
+    except Exception:
+        pass
+    # 2) Durable scene ID-property (survives PropertyGroup RNA cache issues)
+    try:
+        name = context.scene.get(SCENE_ASSEMBLY_BOTTLE_KEY, '')
+    except Exception:
+        name = ''
+    if name and name in bpy.data.objects:
+        bottle = bpy.data.objects[name]
+        if has_assembly(bottle):
+            return bottle
+    return None
+
+def set_scene_assembly_bottle(context, bottle):
+    if bottle is None:
+        return
+    try:
+        context.scene[SCENE_ASSEMBLY_BOTTLE_KEY] = bottle.name
+    except Exception:
+        pass
+    try:
+        context.scene.liquifeel_general_controls.assembly_bottle = bottle
+    except Exception:
+        pass
+
+def _iter_hierarchy_roots(obj__):
+    """Walk parents; yield each ancestor and the object itself."""
+    seen = set()
+    cur = obj__
+    while cur is not None and cur not in seen:
+        yield cur
+        seen.add(cur)
+        cur = cur.parent
+
+def _collect_descendants(root):
+    stack = list(root.children)
+    while stack:
+        child = stack.pop()
+        yield child
+        stack.extend(child.children)
+
+def find_nearby_assembly_bottles(obj__):
+    """Prefer assembly bottles that share hierarchy/collection with obj__."""
+    if obj__ is None:
+        return []
+    nearby = []
+    # Same collections
+    cols = set(obj__.users_collection)
+    for o in bpy.data.objects:
+        if o.type != 'MESH' or not has_assembly(o) or o == obj__:
+            continue
+        if cols and (cols & set(o.users_collection)):
+            nearby.append(o)
+    if nearby:
+        return nearby
+    # Shared parent chain (e.g. NORU_500 → cork sibling of 500_ML → butelka)
+    roots = list(_iter_hierarchy_roots(obj__))
+    for root in roots:
+        for desc in _collect_descendants(root):
+            if desc.type == 'MESH' and has_assembly(desc) and desc != obj__:
+                if desc not in nearby:
+                    nearby.append(desc)
+        if root.type == 'MESH' and has_assembly(root) and root != obj__:
+            if root not in nearby:
+                nearby.append(root)
+    return nearby
+
+def pick_assembly_assign_targets(context):
+    """Return (controller, member) for Assign Cork/Label/Extra.
+
+    Workflow: Set as Bottle once, then select cork/label alone and Assign.
+    Also supports eyedropper (member chosen later) when only the bottle is active.
+    """
+    active = context.active_object
+    selected = [o for o in context.selected_objects if o is not None]
+    if active is None:
+        return None, None
+
+    # Active object is already an assembly bottle.
+    if has_assembly(active):
+        ctrl = active
+        set_scene_assembly_bottle(context, ctrl)
+        for o in selected:
+            if o != ctrl:
+                return ctrl, o
+        return ctrl, None
+
+    # Active is already linked as a member → its controller.
+    ctrl = resolve_assembly_controller_object(active)
+    if ctrl is not None and ctrl != active and has_assembly(ctrl):
+        set_scene_assembly_bottle(context, ctrl)
+        return ctrl, active
+
+    # Selected bottle + active/other member.
+    for o in selected:
+        if has_assembly(o):
+            set_scene_assembly_bottle(context, o)
+            member = active if active != o else None
+            if member is None:
+                for s in selected:
+                    if s != o:
+                        member = s
+                        break
+            return o, member
+
+    # Remembered bottle from last Set as Bottle / Assign.
+    remembered = get_scene_assembly_bottle(context)
+    if remembered is not None and active != remembered:
+        return remembered, active
+
+    # Nearby assembly bottle (same NORU_* hierarchy / collection).
+    nearby = find_nearby_assembly_bottles(active)
+    if len(nearby) == 1:
+        set_scene_assembly_bottle(context, nearby[0])
+        return nearby[0], active
+    if len(nearby) > 1 and remembered in nearby:
+        return remembered, active
+
+    # Sole assembly bottle in the file.
+    controllers = [
+        o for o in bpy.data.objects
+        if o.type == 'MESH' and has_assembly(o)]
+    if len(controllers) == 1 and active != controllers[0]:
+        set_scene_assembly_bottle(context, controllers[0])
+        return controllers[0], active
+
+    return None, active
 
 def find_separate_liquid_object(src):
     marker = _lqfl_marker_get(src)
@@ -8978,6 +9902,16 @@ for asset_key, name_data in RECIPIENT_ASSET_NAME_DATA.items():
 #     adjust_render_settings(
 #         context, light=getattr(slf, 'performance_render_mode'))
 
+class LQFL_AssemblyPartItem(bpy.types.PropertyGroup):
+    """One drop-target slot for an assembly part (Outliner drag / eyedropper)."""
+    object: bpy.props.PointerProperty(
+        name='Part',
+        type=bpy.types.Object,
+        poll=_assembly_part_poll,
+        update=assembly_part_pointer_update,
+    )
+registerable_classes.append(LQFL_AssemblyPartItem)
+
 ## The properties which are not asset specific (i.e. main tabs)
 class GeneralUIControls(bpy.types.PropertyGroup):
     # The main UI tabs (in the upper right corner of the liquifeel panel)
@@ -8999,6 +9933,19 @@ class GeneralUIControls(bpy.types.PropertyGroup):
         # AddAssetTo3DCursor
         # update=append_recipient_asset,
         items=recipient_asset_items)
+    # Assembly: drag bottle + parts from Outliner into these fields.
+    assembly_bottle: bpy.props.PointerProperty(
+        name='Bottle',
+        type=bpy.types.Object,
+        description='Bottle mesh — drag from Outliner or use eyedropper',
+        update=assembly_bottle_pointer_update)
+    assembly_parts: bpy.props.CollectionProperty(type=LQFL_AssemblyPartItem)
+    assembly_parts_index: bpy.props.IntProperty(default=0)
+    assembly_hide_extras: bpy.props.BoolProperty(
+        name='Hide Extras',
+        description='Hide cork / label / extras in the viewport (bottle stays visible)',
+        default=False,
+        update=assembly_hide_extras_update)
     # # KEEP
     # performance_render_mode: bpy.props.BoolProperty(
     #     name='Performance Render Mode',
@@ -10948,7 +11895,10 @@ class CheckActiveGeometry(bpy.types.Operator):
         'Verify that the active object is suitable for filling:\n'
         'single mesh island, no loose geometry, walls with thickness')
     def execute(self, context):
-        obj__ = context.active_object
+        obj__ = resolve_liquifeel_source_object(context.active_object)
+        ctrl = resolve_assembly_controller_object(obj__)
+        if ctrl is not None:
+            obj__ = ctrl
         if not obj__ or obj__.type != 'MESH':
             self.report({'WARNING'}, 'Active object is not a mesh.')
             return {'CANCELLED'}
@@ -10997,6 +11947,491 @@ class BakeParentTransforms(bpy.types.Operator):
             "rotation/scale.")
         return {'FINISHED'}
 registerable_classes.append(BakeParentTransforms)
+
+def _assembly_assign_poll(context):
+    return context.mode == 'OBJECT'
+
+def _assembly_find_controller(context):
+    ctrl, _member = pick_assembly_assign_targets(context)
+    if ctrl is not None:
+        return ctrl
+    ctrl = get_scene_assembly_bottle(context)
+    if ctrl is not None:
+        return ctrl
+    active = context.active_object
+    if active is not None:
+        nearby = find_nearby_assembly_bottles(active)
+        if len(nearby) == 1:
+            return nearby[0]
+    return None
+
+def _assembly_assign_apply(self, context, ctrl, member, role, role_label):
+    if ctrl is None:
+        self.report(
+            {'ERROR'},
+            'No bottle. Select bottle mesh → Set as Bottle first.')
+        return {'CANCELLED'}
+    if member is None or member == ctrl:
+        self.report({'ERROR'}, f'No {role_label} picked.')
+        return {'CANCELLED'}
+    try:
+        ok, err = assign_assembly_role(ctrl, member, role)
+    except Exception as exc:
+        self.report({'ERROR'}, f'Assign failed: {exc}')
+        return {'CANCELLED'}
+    if not ok:
+        self.report({'ERROR'}, err)
+        return {'CANCELLED'}
+    set_scene_assembly_bottle(context, ctrl)
+    self.report(
+        {'INFO'}, f"Assigned {role_label} '{member.name}' → '{ctrl.name}'.")
+    return {'FINISHED'}
+
+def _assembly_raycast_object(context, event):
+    """Object under mouse in a VIEW_3D area, or None."""
+    try:
+        from bpy_extras import view3d_utils
+    except Exception:
+        return None
+    for area in context.screen.areas:
+        if area.type != 'VIEW_3D':
+            continue
+        region = next((r for r in area.regions if r.type == 'WINDOW'), None)
+        if region is None:
+            continue
+        space = area.spaces.active
+        if space is None or space.region_3d is None:
+            continue
+        # Mouse must be over this region
+        if not (0 <= event.mouse_region_x < region.width
+                and 0 <= event.mouse_region_y < region.height):
+            # mouse_region_* is relative to the region that has focus;
+            # fall through and still try with given coords.
+            pass
+        try:
+            with context.temp_override(
+                    window=context.window, area=area, region=region,
+                    space_data=space, scene=context.scene):
+                coord = (event.mouse_region_x, event.mouse_region_y)
+                depsgraph = context.evaluated_depsgraph_get()
+                region_3d = space.region_3d
+                origin = view3d_utils.region_2d_to_origin_3d(
+                    region, region_3d, coord)
+                direction = view3d_utils.region_2d_to_vector_3d(
+                    region, region_3d, coord)
+                result, _loc, _n, _i, hit_obj, _m = context.scene.ray_cast(
+                    depsgraph, origin, direction)
+                if result and hit_obj is not None:
+                    return hit_obj
+        except Exception:
+            continue
+    return None
+
+def _assembly_assign_invoke(self, context, event, role, role_label):
+    ctrl, member = pick_assembly_assign_targets(context)
+    if ctrl is None:
+        ctrl = _assembly_find_controller(context)
+    if ctrl is None:
+        self.report(
+            {'ERROR'},
+            'No bottle. Select bottle mesh → Set as Bottle first.')
+        return {'CANCELLED'}
+    set_scene_assembly_bottle(context, ctrl)
+    self.ctrl_name = ctrl.name
+    if member is not None and member != ctrl:
+        return _assembly_assign_apply(
+            self, context, ctrl, member, role, role_label)
+    context.window_manager.modal_handler_add(self)
+    self.report(
+        {'INFO'},
+        f'Click the {role_label} in the 3D view '
+        f'(bottle: {ctrl.name}). ESC cancels.')
+    return {'RUNNING_MODAL'}
+
+def _assembly_assign_modal(self, context, event, role, role_label):
+    if event.type in {'RIGHTMOUSE', 'ESC'}:
+        self.report({'INFO'}, 'Assign cancelled.')
+        return {'CANCELLED'}
+    if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
+        ctrl = bpy.data.objects.get(self.ctrl_name)
+        if ctrl is None or not has_assembly(ctrl):
+            self.report({'ERROR'}, 'Bottle lost — Set as Bottle again.')
+            return {'CANCELLED'}
+        member = _assembly_raycast_object(context, event)
+        if member is None:
+            member = context.active_object
+        if member is None or member == ctrl:
+            self.report(
+                {'WARNING'},
+                f'Click the {role_label} object (not the bottle).')
+            return {'RUNNING_MODAL'}
+        return _assembly_assign_apply(
+            self, context, ctrl, member, role, role_label)
+    return {'RUNNING_MODAL'}
+
+def _assembly_assign_execute(self, context, role, role_label):
+    ctrl, member = pick_assembly_assign_targets(context)
+    if ctrl is None:
+        ctrl = _assembly_find_controller(context)
+    return _assembly_assign_apply(
+        self, context, ctrl, member, role, role_label)
+
+class AssemblySetBottle(bpy.types.Operator):
+    bl_idname = 'liquifeel.assembly_set_bottle'
+    bl_label = 'Use Active as Bottle'
+    bl_description = (
+        'Mark the active mesh as the bottle.\n'
+        'Also unparents it (Keep Transform) and applies rotation/scale\n'
+        'so Fill works under CAD hierarchies — one step')
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        obj__ = context.active_object
+        return (
+            obj__ is not None
+            and obj__.type == 'MESH'
+            and obj__.mode == 'OBJECT'
+            and not is_liquid_proxy_object(obj__)
+            and not is_assembly_member_object(obj__))
+
+    def execute(self, context):
+        obj__ = context.active_object
+        try:
+            ok, err = prepare_bottle_world_pose(context, obj__)
+            if not ok:
+                self.report({'ERROR'}, err)
+                return {'CANCELLED'}
+            ensure_assembly_controller(obj__)
+            set_scene_assembly_bottle(context, obj__)
+            try:
+                context.scene.liquifeel_general_controls.assembly_bottle = obj__
+            except Exception:
+                pass
+        except Exception as exc:
+            self.report({'ERROR'}, f'Set as Bottle failed: {exc}')
+            return {'CANCELLED'}
+        self.report(
+            {'INFO'},
+            f"Bottle = '{obj__.name}' (unparented / transforms applied). "
+            'Drop other parts into the slots below.')
+        sync_assembly_ui_slots(context, obj__)
+        return {'FINISHED'}
+registerable_classes.append(AssemblySetBottle)
+
+class AssemblyAddSelected(bpy.types.Operator):
+    bl_idname = 'liquifeel.assembly_add_selected'
+    bl_label = 'Add Selected'
+    bl_description = (
+        'Parent all selected objects (cork, label, multi-part caps, …) '
+        'to the bottle so they move together')
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        if context.mode != 'OBJECT':
+            return False
+        ctrl = _assembly_find_controller(context)
+        if ctrl is None:
+            return False
+        return bool(collect_assembly_add_roots(context, ctrl))
+
+    def execute(self, context):
+        ctrl = _assembly_find_controller(context)
+        if ctrl is None:
+            self.report(
+                {'ERROR'},
+                'No bottle. Drop a bottle into the Bottle field first.')
+            return {'CANCELLED'}
+        roots = collect_assembly_add_roots(context, ctrl)
+        if not roots:
+            self.report(
+                {'ERROR'},
+                'Select parts in the viewport/Outliner, or drag them into slots.')
+            return {'CANCELLED'}
+        try:
+            added, err = add_assembly_elements(ctrl, roots)
+        except Exception as exc:
+            self.report({'ERROR'}, f'Add failed: {exc}')
+            return {'CANCELLED'}
+        if added == 0:
+            self.report({'ERROR'}, err or 'Nothing added.')
+            return {'CANCELLED'}
+        apply_assembly_hide_extras_if_enabled(context, ctrl)
+        set_scene_assembly_bottle(context, ctrl)
+        sync_assembly_ui_slots(context, ctrl)
+        self.report(
+            {'INFO'},
+            f"Added {added} element(s) to '{ctrl.name}'.")
+        return {'FINISHED'}
+registerable_classes.append(AssemblyAddSelected)
+
+class AssemblySlotAdd(bpy.types.Operator):
+    bl_idname = 'liquifeel.assembly_slot_add'
+    bl_label = 'Add Drop Slot'
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        try:
+            context.scene.liquifeel_general_controls.assembly_parts.add()
+        except Exception as exc:
+            self.report({'ERROR'}, str(exc))
+            return {'CANCELLED'}
+        return {'FINISHED'}
+registerable_classes.append(AssemblySlotAdd)
+
+class AssemblySlotRemove(bpy.types.Operator):
+    bl_idname = 'liquifeel.assembly_slot_remove'
+    bl_label = 'Remove Part'
+    bl_options = {'REGISTER', 'UNDO'}
+    index: bpy.props.IntProperty(default=-1)
+
+    def execute(self, context):
+        controls = context.scene.liquifeel_general_controls
+        parts = controls.assembly_parts
+        idx = self.index
+        if idx < 0 or idx >= len(parts):
+            return {'CANCELLED'}
+        obj__ = parts[idx].object
+        bottle = controls.assembly_bottle
+        if obj__ is not None and bottle is not None:
+            try:
+                if obj__.parent == bottle or (
+                        _lqfl_marker_get(obj__).get('controller') == bottle.name):
+                    _detach_assembly_member(obj__)
+                    # Drop from extras / cork / label names
+                    asm = get_assembly_dict(bottle)
+                    if asm:
+                        if asm.get('cork') == obj__.name:
+                            asm['cork'] = ''
+                        if asm.get('label') == obj__.name:
+                            asm['label'] = ''
+                        asm['extras'] = [
+                            n for n in asm.get('extras', []) if n != obj__.name]
+                        set_assembly_dict(bottle, asm)
+            except Exception as exc:
+                print(f'LIQUIFEEL: slot remove detach: {exc}')
+        parts.remove(idx)
+        sync_assembly_ui_slots(context, bottle)
+        return {'FINISHED'}
+registerable_classes.append(AssemblySlotRemove)
+
+class AssemblyAssignCork(bpy.types.Operator):
+    bl_idname = 'liquifeel.assembly_assign_cork'
+    bl_label = 'Assign Cork'
+    bl_description = (
+        'Assign cork: uses selection, or click object in the viewport')
+    bl_options = {'REGISTER', 'UNDO'}
+    ctrl_name: bpy.props.StringProperty(default='')
+
+    @classmethod
+    def poll(cls, context):
+        return _assembly_assign_poll(context)
+
+    def invoke(self, context, event):
+        return _assembly_assign_invoke(
+            self, context, event, ASSEMBLY_ROLE_CORK, 'cork')
+
+    def modal(self, context, event):
+        return _assembly_assign_modal(
+            self, context, event, ASSEMBLY_ROLE_CORK, 'cork')
+
+    def execute(self, context):
+        return _assembly_assign_execute(
+            self, context, ASSEMBLY_ROLE_CORK, 'cork')
+registerable_classes.append(AssemblyAssignCork)
+
+class AssemblyAssignLabel(bpy.types.Operator):
+    bl_idname = 'liquifeel.assembly_assign_label'
+    bl_label = 'Assign Label'
+    bl_description = (
+        'Assign label: uses selection, or click object in the viewport')
+    bl_options = {'REGISTER', 'UNDO'}
+    ctrl_name: bpy.props.StringProperty(default='')
+
+    @classmethod
+    def poll(cls, context):
+        return _assembly_assign_poll(context)
+
+    def invoke(self, context, event):
+        return _assembly_assign_invoke(
+            self, context, event, ASSEMBLY_ROLE_LABEL, 'label')
+
+    def modal(self, context, event):
+        return _assembly_assign_modal(
+            self, context, event, ASSEMBLY_ROLE_LABEL, 'label')
+
+    def execute(self, context):
+        return _assembly_assign_execute(
+            self, context, ASSEMBLY_ROLE_LABEL, 'label')
+registerable_classes.append(AssemblyAssignLabel)
+
+class AssemblyAddExtra(bpy.types.Operator):
+    bl_idname = 'liquifeel.assembly_add_extra'
+    bl_label = 'Add Extra'
+    bl_description = (
+        'Assign extra: uses selection, or click object in the viewport')
+    bl_options = {'REGISTER', 'UNDO'}
+    ctrl_name: bpy.props.StringProperty(default='')
+
+    @classmethod
+    def poll(cls, context):
+        return _assembly_assign_poll(context)
+
+    def invoke(self, context, event):
+        return _assembly_assign_invoke(
+            self, context, event, ASSEMBLY_ROLE_EXTRA, 'extra')
+
+    def modal(self, context, event):
+        return _assembly_assign_modal(
+            self, context, event, ASSEMBLY_ROLE_EXTRA, 'extra')
+
+    def execute(self, context):
+        return _assembly_assign_execute(
+            self, context, ASSEMBLY_ROLE_EXTRA, 'extra')
+registerable_classes.append(AssemblyAddExtra)
+
+class AssemblyClearCork(bpy.types.Operator):
+    bl_idname = 'liquifeel.assembly_clear_cork'
+    bl_label = 'Clear Cork'
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        obj__ = context.active_object
+        ctrl = resolve_assembly_controller_object(obj__) if obj__ else None
+        return ctrl is not None and resolve_assembly_cork(ctrl) is not None
+
+    def execute(self, context):
+        ctrl = resolve_assembly_controller_object(context.active_object)
+        ok, err = clear_assembly_role(ctrl, ASSEMBLY_ROLE_CORK)
+        if not ok:
+            self.report({'ERROR'}, err)
+            return {'CANCELLED'}
+        self.report({'INFO'}, 'Cleared cork from assembly.')
+        return {'FINISHED'}
+registerable_classes.append(AssemblyClearCork)
+
+class AssemblyClearLabel(bpy.types.Operator):
+    bl_idname = 'liquifeel.assembly_clear_label'
+    bl_label = 'Clear Label'
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        obj__ = context.active_object
+        ctrl = resolve_assembly_controller_object(obj__) if obj__ else None
+        return ctrl is not None and resolve_assembly_label(ctrl) is not None
+
+    def execute(self, context):
+        ctrl = resolve_assembly_controller_object(context.active_object)
+        ok, err = clear_assembly_role(ctrl, ASSEMBLY_ROLE_LABEL)
+        if not ok:
+            self.report({'ERROR'}, err)
+            return {'CANCELLED'}
+        self.report({'INFO'}, 'Cleared label from assembly.')
+        return {'FINISHED'}
+registerable_classes.append(AssemblyClearLabel)
+
+class AssemblyRemoveMember(bpy.types.Operator):
+    bl_idname = 'liquifeel.assembly_remove_member'
+    bl_label = 'Remove Extra'
+    bl_description = 'Unparent an extra from the bottle assembly (Keep Transform)'
+    bl_options = {'REGISTER', 'UNDO'}
+
+    member_name: bpy.props.StringProperty(name='Member Name', default='')
+
+    @classmethod
+    def poll(cls, context):
+        obj__ = context.active_object
+        ctrl = resolve_assembly_controller_object(obj__) if obj__ else None
+        return ctrl is not None and has_assembly(ctrl)
+
+    def execute(self, context):
+        ctrl = resolve_assembly_controller_object(context.active_object)
+        if not self.member_name:
+            self.report({'ERROR'}, 'No member name.')
+            return {'CANCELLED'}
+        ok, err = clear_assembly_role(
+            ctrl, ASSEMBLY_ROLE_EXTRA, extra_name=self.member_name)
+        if not ok:
+            self.report({'ERROR'}, err)
+            return {'CANCELLED'}
+        self.report({'INFO'}, f"Removed '{self.member_name}' from assembly.")
+        return {'FINISHED'}
+registerable_classes.append(AssemblyRemoveMember)
+
+class AssemblyToggleHideExtras(bpy.types.Operator):
+    bl_idname = 'liquifeel.assembly_toggle_hide_extras'
+    bl_label = 'Hide Extras'
+    bl_description = (
+        'Hide / show cork, label and extras (and their children) in the viewport.\n'
+        'Bottle and liquid stay visible. Applies to every Assembly bottle in the file.')
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        try:
+            bottle = context.scene.liquifeel_general_controls.assembly_bottle
+        except Exception:
+            bottle = None
+        if bottle is not None and has_assembly(bottle):
+            return True
+        return _assembly_find_controller(context) is not None
+
+    def execute(self, context):
+        controls = context.scene.liquifeel_general_controls
+        new_state = not bool(controls.assembly_hide_extras)
+        # Write flag; update callback also applies, then we apply again for certainty
+        controls.assembly_hide_extras = new_state
+        n = apply_assembly_hide_state(context, new_state)
+        if new_state:
+            if n == 0:
+                self.report(
+                    {'WARNING'},
+                    'Hide Extras ON — nothing to hide. Are parts linked under the bottle?')
+            else:
+                self.report({'INFO'}, f'Hidden {n} part object(s).')
+        else:
+            self.report({'INFO'}, f'Shown {n} part object(s).')
+        return {'FINISHED'}
+registerable_classes.append(AssemblyToggleHideExtras)
+
+class AssemblyClear(bpy.types.Operator):
+    bl_idname = 'liquifeel.assembly_clear'
+    bl_label = 'Clear Assembly'
+    bl_description = (
+        'Unparent parts from the bottle and clear assembly markers.\n'
+        'Does not delete objects or clear Fill')
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        ctrl = _assembly_find_controller(context)
+        return ctrl is not None and has_assembly(ctrl)
+
+    def execute(self, context):
+        ctrl = _assembly_find_controller(context)
+        if ctrl is None:
+            return {'CANCELLED'}
+        ok, err = clear_assembly(ctrl)
+        if not ok:
+            self.report({'ERROR'}, err)
+            return {'CANCELLED'}
+        try:
+            controls = context.scene.liquifeel_general_controls
+            controls.assembly_parts.clear()
+            controls.assembly_bottle = None
+        except Exception:
+            pass
+        try:
+            context.scene.pop(SCENE_ASSEMBLY_BOTTLE_KEY, None)
+        except Exception:
+            pass
+        sync_assembly_ui_slots(context, None)
+        self.report({'INFO'}, f"Cleared assembly on '{ctrl.name}'.")
+        return {'FINISHED'}
+registerable_classes.append(AssemblyClear)
 
 def is_liquifeel_leftover_ng(ng):
     return ('liquifeel' in ng.keys()
@@ -11354,7 +12789,14 @@ class FillActive(bpy.types.Operator):
     bl_idname = 'liquifeel.fill_active_object'
     bl_label = 'Fill Selected'
     def execute(self, context):
-        obj__ = context.active_object
+        obj__ = resolve_liquifeel_source_object(context.active_object)
+        ctrl = resolve_assembly_controller_object(obj__)
+        if ctrl is not None:
+            obj__ = ctrl
+        if obj__ is None:
+            self.report({'ERROR'}, 'No object to fill.')
+            return {'CANCELLED'}
+        select_and_set_active(context, obj__, deselect_all=True)
         fill_object(context, obj__)
         return {'FINISHED'}
 registerable_classes.append(FillActive)
@@ -11401,7 +12843,13 @@ def clear_asset(context):
 
 @undo_push(1)
 def clear_fill(context, material_only=False):
-    obj__ = context.active_object
+    obj__ = resolve_liquifeel_source_object(context.active_object)
+    ctrl = resolve_assembly_controller_object(obj__)
+    if ctrl is not None:
+        obj__ = ctrl
+    if obj__ is None:
+        return
+    select_and_set_active(context, obj__, deselect_all=True)
     teardown_separate_liquid_object(context, obj__)
     try:
         obj__.hrdc_liquifeel_input_field_props.geometry.separate_objects = False
@@ -11421,7 +12869,10 @@ def clear_fill(context, material_only=False):
             mod, obj__, 'fill')]:
         obj__.modifiers.remove(mod)
     if not(is_obj_library_slot_shaded__anylib(obj__)):
-        maybe_remove_lqfl_object_tags(obj__)
+        if has_assembly(obj__):
+            _lqfl_strip_fill_keys_keep_assembly(obj__)
+        else:
+            maybe_remove_lqfl_object_tags(obj__)
     obj__.update_tag()
 
 def apply_condensation(context):
@@ -11536,6 +12987,9 @@ def apply_asset(context):
 @undo_push(1)
 def apply_fill(context):
     obj__ = resolve_liquifeel_source_object(context.active_object)
+    ctrl = resolve_assembly_controller_object(obj__)
+    if ctrl is not None:
+        obj__ = ctrl
     if obj__ is None:
         return
     select_and_set_active(context, obj__, deselect_all=True)
@@ -11593,6 +13047,9 @@ def apply_fill(context):
             marker.pop('filled', None)
             marker.pop('fill_shading', None)
             marker.pop('separate_liquid', None)
+            if 'assembly' in marker:
+                marker['assembly'] = _normalize_assembly_dict(
+                    marker.get('assembly'))
             if set(marker.keys()) <= {'version'}:
                 maybe_remove_lqfl_object_tags(obj__)
             else:
@@ -11603,10 +13060,11 @@ def apply_fill(context):
         mw = liquid_obj.matrix_world.copy()
         liquid_obj.parent = obj__
         liquid_obj.matrix_world = mw
-        # Two objects in a fresh Outliner collection/group.
+        # Bottle + liquid + assembly members in a fresh Outliner collection.
+        assembly_members = list_assembly_member_objects(obj__)
         move_objects_to_new_collection(
             context,
-            [obj__, liquid_obj],
+            [obj__, liquid_obj] + assembly_members,
             f'{obj__.name}_LiquiFeel')
         return
 
@@ -11627,10 +13085,12 @@ def apply_fill(context):
     for mod in [mod for mod in obj__.modifiers if is_shader_aux_modifier(mod, obj__, 'fill')]:
         bpy.ops.object.modifier_apply(modifier=mod.name)
     if not(is_obj_library_slot_shaded__anylib(obj__)):
-        if 'liquifeel' in obj__:
-            obj__.pop('liquifeel')
-    if not(is_obj_library_slot_shaded__anylib(obj__)):
-        maybe_remove_lqfl_object_tags(obj__)
+        if has_assembly(obj__):
+            _lqfl_strip_fill_keys_keep_assembly(obj__)
+        else:
+            if 'liquifeel' in obj__:
+                obj__.pop('liquifeel')
+            maybe_remove_lqfl_object_tags(obj__)
 
 class ApplyAsset(bpy.types.Operator):
     bl_idname = 'liquifeel.apply_asset'
@@ -12532,16 +13992,12 @@ def draw_legacy_asset_configuration_message(context, root_layout):
     root_layout.label(text="use the legacy LiquiFeel version used to")
     root_layout.label(text="create it originally.")
     apply_clear_row = root_layout.row()
-    apply_clear_row.operator(
-        'liquifeel.clear_asset',
-        text='Clear',
-        icon_value=preview_data['ids']['icons']['clear']
-    )
-    apply_clear_row.operator(
-        'liquifeel.apply_asset',
-        text='Apply',
-        icon_value=preview_data['ids']['icons']['check']
-    )
+    layout_operator_with_preview(
+        apply_clear_row, 'liquifeel.clear_asset',
+        text='Clear', icon_key='clear', fallback_icon='X')
+    layout_operator_with_preview(
+        apply_clear_row, 'liquifeel.apply_asset',
+        text='Apply', icon_key='check', fallback_icon='CHECKMARK')
     root_layout.operator(
         'liquifeel.reset_active_object',
         text='Reset LiquiFeel on This Object',
@@ -12647,7 +14103,9 @@ def draw_navigation_and_feedback(context, root_layout):
 
 
 def draw_filled_geometry_ui(context, root_layout):
-    obj__ = context.active_object
+    # Liquid proxy → bottle; assembly members are handled in draw_geometry_ui
+    # (Fill UI is only drawn when the bottle itself is active).
+    obj__ = resolve_liquifeel_source_object(context.active_object)
     box = root_layout.box()
     prop_parent = obj__.hrdc_liquifeel_input_field_props.geometry
     box.prop(prop_parent, 'opening_shape', text='Opening Type')
@@ -12706,7 +14164,14 @@ def draw_filled_geometry_ui(context, root_layout):
 #     # draw_spacing(root_layout)
 
 def draw_bake_parent_transforms_button(obj__, root_layout):
+    """Only as a fallback for already-filled bottles that are still parented.
+
+    New bottles use Use Active as Bottle / Bottle drop field, which bake in
+    the same step — so we do not show a second button next to Set Bottle.
+    """
     if obj__.parent is None:
+        return
+    if not is_obj_filled(obj__):
         return
     row = root_layout.row()
     row.scale_y = MID_H
@@ -12715,48 +14180,154 @@ def draw_bake_parent_transforms_button(obj__, root_layout):
         text='Unparent & Apply Transforms',
         icon='OBJECT_ORIGIN')
 
-def draw_geometry_ui(context, root_layout):
-    if is_active_selected_ob(context):
-        obj__ = context.active_object
-        if obj__.mode == 'OBJECT':
-            if has_obj_single_mesh_island(obj__):
-                if is_asset_legacy_configured(obj__):
-                    draw_legacy_asset_configuration_message(context, root_layout)
-                else:
-                    draw_bake_parent_transforms_button(obj__, root_layout)
-                    if is_obj_filled(obj__):
-                        draw_filled_geometry_ui(context, root_layout)
-                    else:
-                        fill_it_row = root_layout.row()
-                        fill_it_row.scale_y = LRG_H
-                        fill_it_row.operator(
-                            'liquifeel.fill_active_object',
-                            text='Fill Active Object',
-                            icon_value=preview_data['ids']['icons']['geometry'],
-                        )
-                        root_layout.operator(
-                            'liquifeel.check_active_geometry',
-                            text='Check Geometry',
-                            icon='VIEWZOOM')
-            else:
-                root_layout.label(
-                    text='This object is not composed of a single mesh island.')
-                root_layout.label(
-                    text='Please separate the part that you want to fill and')
-                root_layout.label(
-                    text='make sure it has thickness and a suitable opening')
-                draw_bake_parent_transforms_button(obj__, root_layout)
-                check_row = root_layout.row()
-                check_row.scale_y = MID_H
-                check_row.operator(
-                    'liquifeel.check_active_geometry',
-                    text='Check Geometry',
-                    icon='VIEWZOOM')
-        else:
-            root_layout.label(text='Please enter Object Mode.')
+def draw_assembly_ui(context, root_layout, controller, active):
+    """Drop targets: Bottle + part slots (drag from Outliner / eyedropper).
+
+    Always drawn — even with no selection — so Outliner drag does not make
+    the drop fields disappear mid-gesture.
+    """
+    box = root_layout.box()
+    box.label(text='Assembly', icon='OBJECT_DATA')
+    try:
+        controls = context.scene.liquifeel_general_controls
+    except Exception:
+        box.label(text='Restart Blender to enable Assembly drop fields.')
+        return
+
+    box.label(text='Drag from Outliner into the fields below')
+    box.prop(controls, 'assembly_bottle', text='Bottle')
+
+    bottle = controls.assembly_bottle
+    if bottle is not None and has_assembly(bottle):
+        controller = bottle
+    elif controller is not None and has_assembly(controller):
+        pass
     else:
+        remembered = get_scene_assembly_bottle(context)
+        if remembered is not None:
+            controller = remembered
+
+    # Never mutate RNA during draw — schedule a deferred empty slot if needed.
+    if len(controls.assembly_parts) == 0:
+        schedule_assembly_drop_slot_seed()
+        box.label(text='Preparing drop slot…')
+    else:
+        box.label(text='Other parts')
+        for i, item in enumerate(controls.assembly_parts):
+            row = box.row(align=True)
+            row.prop(item, 'object', text='')
+            op = row.operator(
+                'liquifeel.assembly_slot_remove', text='', icon='X')
+            op.index = i
+
+    row = box.row(align=True)
+    row.operator('liquifeel.assembly_slot_add', text='Add Slot', icon='ADD')
+    row.operator(
+        'liquifeel.assembly_add_selected',
+        text='Add Selected',
+        icon='IMPORT')
+
+    if controller is not None and has_assembly(controller):
+        n_linked = len(list_assembly_member_objects(controller))
+        box.label(text=f'Linked: {n_linked}')
+        hide_on = bool(controls.assembly_hide_extras)
+        hide_row = box.row()
+        hide_row.scale_y = MID_H
+        hide_row.alert = hide_on
+        hide_row.operator(
+            'liquifeel.assembly_toggle_hide_extras',
+            text='Show Extras' if hide_on else 'Hide Extras',
+            icon='HIDE_OFF' if hide_on else 'HIDE_ON',
+            depress=hide_on)
+        box.operator('liquifeel.assembly_clear', text='Clear Assembly')
+    else:
+        can_set = (
+            active is not None
+            and active.type == 'MESH'
+            and getattr(active, 'mode', None) == 'OBJECT'
+            and not is_liquid_proxy_object(active)
+            and not is_assembly_member_object(active))
+        if can_set:
+            row = box.row()
+            row.scale_y = MID_H
+            row.operator(
+                'liquifeel.assembly_set_bottle',
+                text='Use Active as Bottle',
+                icon='OBJECT_ORIGIN')
+
+def draw_geometry_ui(context, root_layout):
+    try:
+        _draw_geometry_ui_impl(context, root_layout)
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        root_layout.label(text=f'LiquiFeel Geometry UI error: {exc}', icon='ERROR')
+        root_layout.label(text=f'Build: {ADDON_BUILD_TAG}')
+
+def _draw_geometry_ui_impl(context, root_layout):
+    active = context.active_object if is_active_selected_ob(context) else None
+    controller = None
+    if active is not None:
+        controller = resolve_assembly_controller_object(active)
+    if controller is None:
+        controller = get_scene_assembly_bottle(context)
+
+    # Assembly drop fields must stay visible during Outliner drag (selection
+    # often clears / changes mid-gesture and used to wipe this whole panel).
+    draw_assembly_ui(context, root_layout, controller, active)
+
+    if active is None:
         root_layout.label(
-            text='Please select an object that has one mesh island!')
+            text='Select the bottle mesh to edit Fill / liquid.')
+        return
+
+    # Prop updates use context.active_object — only edit Fill on the bottle.
+    fill_controller = resolve_assembly_controller_object(active)
+    if fill_controller is not None and active != fill_controller:
+        root_layout.label(text='Select the bottle to edit Fill / liquid.')
+        return
+    obj__ = resolve_liquifeel_source_object(active)
+    if obj__ is None:
+        root_layout.label(text='No fill target object.')
+        return
+    if obj__.mode == 'OBJECT':
+        if has_obj_single_mesh_island(obj__):
+            if is_asset_legacy_configured(obj__):
+                draw_legacy_asset_configuration_message(context, root_layout)
+            else:
+                draw_bake_parent_transforms_button(obj__, root_layout)
+                if is_obj_filled(obj__):
+                    draw_filled_geometry_ui(context, root_layout)
+                else:
+                    fill_it_row = root_layout.row()
+                    fill_it_row.scale_y = LRG_H
+                    layout_operator_with_preview(
+                        fill_it_row,
+                        'liquifeel.fill_active_object',
+                        text='Fill Active Object',
+                        icon_key='geometry',
+                        fallback_icon='MESH_DATA',
+                    )
+                    root_layout.operator(
+                        'liquifeel.check_active_geometry',
+                        text='Check Geometry',
+                        icon='VIEWZOOM')
+        else:
+            root_layout.label(
+                text='This object is not composed of a single mesh island.')
+            root_layout.label(
+                text='Please separate the part that you want to fill and')
+            root_layout.label(
+                text='make sure it has thickness and a suitable opening')
+            draw_bake_parent_transforms_button(obj__, root_layout)
+            check_row = root_layout.row()
+            check_row.scale_y = MID_H
+            check_row.operator(
+                'liquifeel.check_active_geometry',
+                text='Check Geometry',
+                icon='VIEWZOOM')
+    else:
+        root_layout.label(text='Please enter Object Mode.')
 # def draw_geometry_ui(context, root_layout):
 #     if is_active_selected_ob(context):
 #         obj__ = context.active_object
@@ -14636,20 +16207,16 @@ def draw_clear_apply_ui(context, root_layout):
         apply_clear_row = root_layout.row()
         obj__ = context.object
         if is_obj_liquifeel_asset(obj__) and obj__.mode == 'OBJECT':
-            apply_clear_row.operator(
-                'liquifeel.clear_fill',
-                text='Clear Fill',
-                icon_value=preview_data['ids']['icons']['clear']
-            )
+            layout_operator_with_preview(
+                apply_clear_row, 'liquifeel.clear_fill',
+                text='Clear Fill', icon_key='clear', fallback_icon='X')
             # apply_clear_row.operator(
             #     'liquifeel.clear_asset',
             #     text='Clear',
             # )
-            apply_clear_row.operator(
-                'liquifeel.apply_fill',
-                text='Apply Fill',
-                icon_value=preview_data['ids']['icons']['check']
-            )
+            layout_operator_with_preview(
+                apply_clear_row, 'liquifeel.apply_fill',
+                text='Apply Fill', icon_key='check', fallback_icon='CHECKMARK')
             # apply_clear_row.operator(
             #     'liquifeel.apply_asset',
             #     text='Apply',
@@ -14717,8 +16284,18 @@ def draw_clear_apply_ui(context, root_layout):
 def draw_hrdc_main_panel(panel__, context):
     draw_spacing(panel__.layout)
     draw_navigation_and_feedback(context, panel__.layout)
-    hrdc_main_tab_draw_fs[
-        getattr(context.scene.liquifeel_general_controls, 'main_tabs')](context, panel__.layout)
+    tab_key = getattr(context.scene.liquifeel_general_controls, 'main_tabs')
+    draw_tab = hrdc_main_tab_draw_fs.get(tab_key)
+    if draw_tab is None:
+        panel__.layout.label(text=f'Unknown LiquiFeel tab: {tab_key}', icon='ERROR')
+    else:
+        try:
+            draw_tab(context, panel__.layout)
+        except Exception as exc:
+            import traceback
+            traceback.print_exc()
+            panel__.layout.label(text=f'LiquiFeel UI error: {exc}', icon='ERROR')
+            panel__.layout.label(text=f'Build: {ADDON_BUILD_TAG}')
     draw_spacing(panel__.layout)
     # draw_clear_apply_ui(context, panel__.layout)
     draw_spacing(panel__.layout)
@@ -14738,9 +16315,11 @@ class HRDC_MainPanel(bpy.types.Panel):
     bl_region_type = 'UI'
     bl_category = 'Liquifeel'
     def draw_header(self, context):
-        self.layout.label(
-            text='',
-            icon_value=preview_data['ids']['icons']['liquifeel_purple'])
+        icon_id = preview_icon_id('liquifeel_purple')
+        if icon_id:
+            self.layout.label(text='', icon_value=icon_id)
+        else:
+            self.layout.label(text='', icon='FLUID')
     def draw(self, context):
         draw_hrdc_main_panel(self, context)
 registerable_classes.append(HRDC_MainPanel)
