@@ -9,6 +9,9 @@ __pycache__/
 *.blend.bak_*
 *.bak_*
 
+# Master asset blend — exceeds GitHub 100MB limit, delivered out-of-band
+data/blendfs/LiquidFeel_MASTER.blend
+
 # OS cruft
 .DS_Store
 
