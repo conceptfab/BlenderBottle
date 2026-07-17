@@ -1,0 +1,130 @@
+{
+    "liquifeel_carafe": {
+        "name": "LiquifeelCarafe",
+        "children": [
+	    {
+                "name": "LiquifeelCarafe_Cork",
+                "children": []
+            }
+	]
+    },
+    "american_pint_glass": {
+        "name": "American_Pint_Glass",
+        "children": []
+    },
+    "bordeaux_wine_glass": {
+        "name": "Bordeaux Wine Glass",
+        "children": []
+    },
+    "beer_bottle_22oz": {
+        "name": "Bomber 22oz Bottle",
+        "children": [
+            {
+                "name": "Beer Cap",
+                "children": []
+            },
+	    {
+                "name": "Beer_Bottle_Neck Label",
+                "children": []
+            },
+	    {
+                "name": "Beer_Bottle_Label",
+                "children": []
+            }
+        ]
+    },
+    "beer_mug": {
+        "name": "Beer_Mug",
+        "children": []
+    },
+    "large_bowl": {
+        "name": "Bowl_2in",
+        "children": []
+    },
+    "bowl_6_5in": {
+        "name": "Bowl_6in",
+        "children": []
+    },
+    "bowl_7_5in": {
+        "name": "Bowl_7.5in",
+        "children": []
+    },
+    "bowl_9in": {
+        "name": "Bowl_9in",
+        "children": []
+    },
+    "champagne_bottle": {
+        "name": "Champagne 750mL",
+        "children": [
+            {
+                "name": "Champagne Cap",
+                "children": [
+                    {
+                        "name": "Muselet",
+                        "children": []
+                    }
+                ]
+            }
+        ]
+    },
+    "hurricane_glass": {
+        "name": "Hurricane Glass",
+        "children": []
+    },
+    "ikea_carafe": {
+        "name": "Ikea 365+ Carafe",
+        "children": [
+            {
+                "name": "Ikea 365+ Carafe Cap",
+                "children": []
+            }
+        ]
+    },
+    "pitcher": {
+        "name": "Pitcher",
+        "children": [
+            {
+                "name": "Pitcher_Cork",
+                "children": []
+            }
+        ]
+    },
+    "soda_bottle_16_9oz": {
+        "name": "Soda Bottle 16.9oz",
+        "children": [
+            {
+                "name": "Soda Bottle Cap",
+                "children": []
+            }
+        ]
+    },
+    "whiskey_glass": {
+        "name": "Whiskey Glass",
+        "children": []
+    },
+    "pear_glass": {
+	"name": "Pear Glass",
+	"children": []
+    },
+    "patterned_whiskey_glass": {
+	"name": "Patterned Whiskey Glass",
+	"children": []
+    },
+    "vellum_whiskey_bottle": {
+	"name": "Vellum Whiskey Bottle",
+	"children": [
+	    {
+		"name": "Vellum Whiskey Bottle Cork",
+		"children": []
+	    },
+	    {
+		"name": "Vellum Whiskey Bottle Neck Label",
+		"children": []
+	    },
+	    {
+		"name": "Vellum Whiskey Bottle Label",
+		"children": []
+	    }
+	]
+    }
+}
