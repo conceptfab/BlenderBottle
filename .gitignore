@@ -17,3 +17,6 @@ data/blendfs/LiquidFeel_MASTER.blend
 
 # Dev/debug scratch output
 tests/_draw_debug_out.txt
+
+# Release build output
+dist/
