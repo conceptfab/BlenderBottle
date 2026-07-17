@@ -1,0 +1,14 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Blender backups / temp
+*.blend1
+*.blend2
+*_bak_*.blend
+
+# OS cruft
+.DS_Store
+
+# Dev/debug scratch output
+tests/_draw_debug_out.txt
