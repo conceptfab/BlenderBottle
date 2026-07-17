@@ -12660,6 +12660,15 @@ def build_liquifeel_diagnostics(context):
     lines = []
     lines.append(f'LiquiFeel diagnostics | build: {ADDON_BUILD_TAG} | '
                  f'Blender: {bpy.app.version_string} | addon file: {__file__}')
+    # Scene scale: a non-unit scale_length (e.g. a millimetre scene at 0.001)
+    # changes the world size the fill Geometry Nodes see and is a common cause
+    # of mis-sized / mis-placed liquid.
+    us = context.scene.unit_settings
+    scene_warn = ('  <-- NON-UNIT SCENE SCALE (fill/liquid may be mis-sized)'
+                  if abs(us.scale_length - 1.0) > 1e-6 else '')
+    lines.append(
+        f"Scene units: system={us.system} length={us.length_unit} "
+        f"scale_length={round(us.scale_length, 6)}{scene_warn}")
     obj__ = context.active_object
     if obj__ is None:
         lines.append('Active object: None')
@@ -12670,6 +12679,27 @@ def build_liquifeel_diagnostics(context):
             f"override={obj__.override_library is not None} "
             f"data_linked={getattr(obj__.data, 'library', None) is not None} "
             f"scale={tuple(round(v, 4) for v in obj__.scale)}")
+        # World scale (folds in parent scale like a 'skala0.5' CAD root),
+        # world dimensions, and non-uniform/non-unit warnings — the geometry
+        # the fill nodes actually operate on.
+        _, _, world_scale = obj__.matrix_world.decompose()
+        nonuniform = (max(world_scale) - min(world_scale)) > 1e-4
+        obj_warn = ''
+        if nonuniform:
+            obj_warn += '  <-- NON-UNIFORM SCALE (fill may shear/distort)'
+        if any(abs(v - 1.0) > 1e-3 for v in world_scale):
+            obj_warn += '  <-- NON-UNIT WORLD SCALE (fill/liquid may be mis-sized)'
+        lines.append(
+            f"Object scale: local={tuple(round(v, 4) for v in obj__.scale)} "
+            f"world={tuple(round(v, 4) for v in world_scale)} "
+            f"dimensions={tuple(round(v, 4) for v in obj__.dimensions)}{obj_warn}")
+        chain = []
+        _p = obj__.parent
+        while _p is not None:
+            chain.append(f"{_p.name}{tuple(round(v, 3) for v in _p.scale)}")
+            _p = _p.parent
+        lines.append('Parent chain (name+scale): '
+                     + (' -> '.join(chain) if chain else '(none)'))
         marker = obj__.get('liquifeel')
         lines.append(f"Object 'liquifeel' marker: "
                      f"{marker.to_dict() if hasattr(marker, 'to_dict') else marker}")
