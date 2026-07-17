@@ -154,6 +154,42 @@ def main():
     else:
         ok('bake_parent clears CAD parent, keeps assembly children')
 
+    # --- Regression: scale preserved + children not dragged on bake ---
+    scaled = mesh_obj('ScaledBottle', (2, 0, 0))
+    scaled.scale = (0.1, 0.1, 0.1)
+    bpy.context.view_layer.update()
+    select_active(scaled)
+    if 'FINISHED' not in bpy.ops.liquifeel.assembly_set_bottle():
+        fail('Set scaled bottle failed')
+    scap = mesh_obj('ScaledCork', (2, 0, 0.06))
+    select_active(scap)
+    bpy.ops.liquifeel.assembly_assign_cork()
+
+    root = bpy.data.objects.new('SkalaRoot', None)
+    bpy.context.collection.objects.link(root)
+    mw = scaled.matrix_world.copy()
+    scaled.parent = root
+    scaled.matrix_world = mw
+    root.rotation_euler.z = math.radians(30)
+    bpy.context.view_layer.update()
+
+    cork_world_before = scap.matrix_world.translation.copy()
+    select_active(scaled)
+    if 'FINISHED' not in bpy.ops.liquifeel.bake_parent_transforms():
+        fail('bake on scaled bottle failed')
+    bpy.context.view_layer.update()
+
+    if abs(scaled.scale.x - 0.1) > 1e-4:
+        fail(f'Bottle scale was baked away: scale.x={scaled.scale.x} (expected 0.1)')
+    else:
+        ok('Bottle scale 0.1 preserved through bake')
+
+    cork_world_after = scap.matrix_world.translation.copy()
+    if (cork_world_after - cork_world_before).length > 1e-3:
+        fail(f'Cork drifted on bake: {(cork_world_after - cork_world_before).length}')
+    else:
+        ok('Cork world position preserved through bake')
+
     marker = dict(mod._lqfl_marker_get(bottle))
     marker['filled'] = True
     marker['separate_liquid'] = 'dummy'

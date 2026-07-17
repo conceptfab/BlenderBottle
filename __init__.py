@@ -111,25 +111,33 @@ def parse_json_string(json_string):
 def make_single_user_and_apply_transforms(context, obj__):
     select_and_set_active(context, obj__, deselect_all=True)
     bpy.ops.object.make_single_user(object=True, obdata=True, material=True)
-    # Apparently we don't have to apply the rotation
-    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+    # Rotation only -- never bake scale (see bake_parent_transforms docstring).
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
 
 def bake_parent_transforms(context, obj__):
-    """Unparent with Keep Transform, then apply rotation/scale.
+    """Unparent with Keep Transform, then apply ROTATION ONLY.
 
     LiquiFeel's fill Geometry Nodes read Self Object / Object Info rotation in
     world space. Nested parents (typical CAD hierarchies) leave that rotation
-    on the parent chain, which breaks liquid generation. Baking the world pose
-    into the object fixes it without changing the visible placement.
+    on the parent chain, which breaks liquid generation. Baking the world
+    rotation into the object fixes it without changing the visible placement.
+
+    Scale is deliberately NOT applied: models are often authored at a non-unit
+    scale (e.g. 0.1), the liquid proxy inherits the bottle's scale, and
+    transform_apply does not compensate child matrix_parent_inverse -- applying
+    scale would resize the liquid and drag cork/label off the bottle.
     """
     select_and_set_active(context, obj__, deselect_all=True)
     bpy.ops.object.make_single_user(object=True, obdata=True, material=True)
     if obj__.parent is not None:
-        mw = obj__.matrix_world.copy()
-        obj__.parent = None
-        obj__.matrix_world = mw
+        unparent_keep_transform(obj__)
         context.view_layer.update()
-    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+    # Snapshot child world matrices: applying rotation to a parent does not fix
+    # child matrix_parent_inverse, so children would otherwise drift.
+    child_world = {child: child.matrix_world.copy() for child in obj__.children}
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
+    for child, mw in child_world.items():
+        child.matrix_world = mw
 
 def prepare_bottle_world_pose(context, obj__):
     """If bottle sits under a parent: unparent Keep Transform + apply rot/scale.
