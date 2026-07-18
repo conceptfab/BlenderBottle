@@ -8107,13 +8107,23 @@ def get_declaration_modality_key(redux_input_data):
 # #     pass
 # # registerable_classes.append(ObjectAttached_Synthetic_Geometry_InputProps)
 
-# This is not the main actor of the opening-shape selector
-# functionality. the main function this property serves is to hide /
-# unhide the lip threshold control. Setting it to 0 when deactivated
-# is just a side.
+# This is not the main actor of the opening-shape selector functionality.
+# 'straight' hides the Lip Threshold slider, so the underlying Select Outer
+# modifier input must be reset here — otherwise a stale threshold keeps
+# affecting the fill while its control is hidden.
+@undo_push(2)
 def opening_shape_mandef_update(slf, context):
-    if getattr(slf, 'opening_shape') == 'straight':
-        setattr(slf, 'lip_threshold', 0.0)
+    if getattr(slf, 'opening_shape') != 'straight':
+        return
+    obj__ = context.active_object
+    if obj__ is None:
+        return
+    try:
+        set_geonode_mod_input(
+            obj__, SELECT_OUTER_NG_NAME, 'Lip Threshold', 'float', 0.0)
+    except Exception:
+        return
+    schedule_separate_refresh(obj__)
 
 @undo_push(2)
 def hide_liquid_update(slf, context):

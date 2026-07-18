@@ -253,6 +253,33 @@ def main():
     else:
         ok('Marker round-trip preserves data')
 
+    # --- Regression: Opening Type -> 'straight' must actually RESET the
+    #     Select Outer modifier's Lip Threshold to 0 (old code wrote to a
+    #     phantom 'lip_threshold' attribute and left the modifier stale) ---
+    so_group = bpy.data.node_groups.new(mod.SELECT_OUTER_NG_NAME, 'GeometryNodeTree')
+    so_group.interface.new_socket('Lip Threshold', in_out='INPUT',
+                                  socket_type='NodeSocketFloat')
+    lip_obj = mesh_obj('LipTest', (5, 0, 0))
+    so_mod = lip_obj.modifiers.new(mod.SELECT_OUTER_NG_NAME, 'NODES')
+    so_mod.node_group = so_group
+    bpy.context.view_layer.update()
+    select_active(lip_obj)
+    mod.set_geonode_mod_input(lip_obj, mod.SELECT_OUTER_NG_NAME,
+                              'Lip Threshold', 'float', 5.0)
+    before = mod.get_geonode_mod_input(lip_obj, mod.SELECT_OUTER_NG_NAME,
+                                       'Lip Threshold')
+    props = lip_obj.hrdc_liquifeel_input_field_props.geometry
+    props.opening_shape = 'irregular'   # non-straight -> callback no-ops
+    props.opening_shape = 'straight'    # fires update -> should reset to 0
+    after = mod.get_geonode_mod_input(lip_obj, mod.SELECT_OUTER_NG_NAME,
+                                      'Lip Threshold')
+    if abs(before - 5.0) > 1e-5:
+        fail(f'test setup wrong: Lip Threshold not set to 5.0 (got {before})')
+    elif abs(after) > 1e-5:
+        fail(f'Opening Type straight did not reset Lip Threshold: {after}')
+    else:
+        ok('Opening Type straight resets Select Outer Lip Threshold to 0')
+
     select_active(bottle)
     result = bpy.ops.liquifeel.assembly_clear()
     if 'FINISHED' not in result:
