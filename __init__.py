@@ -9715,29 +9715,6 @@ def scene_slot_shading_material_update(slf, context):
 #         img = maybe_load_image(img_tex_fpath)
 #         assign_image_to_nodes(obj__, nodes, img, img_tex_fpath)
 
-def hrdc_pattern_texture_updt(slf, context):
-    obj__ = context.active_object
-    material = hrdc_get_asset_material(
-        obj__, shading_modality_key='slot')
-    node_names = ['PatternImage_UV', 'PatternImage_Box']
-    nodes = [get_material_node(material, node_name) for node_name in node_names]
-    # nodes = [get_material_node(material, node_name.strip()) for node_name in node_names.split(';')]
-    val_data = get_prop_vals(slf, ["pattern_texture_resolution", "pattern_library"])
-    res_key = val_data['pattern_texture_resolution']
-    pat_lib_key = val_data['pattern_library']
-    # if pat_lib_key == 'user_defined' and are_user_defined_patterns_present():
-    if pat_lib_key == 'user_defined' and are_user_defined_maps_present('pattern'):
-        img_key = get_prop_vals(slf, "user_pattern_texture")
-        img = bpy.data.images[img_key]
-        img_tex_fpath = img.filepath_from_user()
-        assign_image_to_nodes(obj__, nodes, img, img_tex_fpath)
-    elif pat_lib_key == 'liquifeel':
-        img_key = get_prop_vals(slf, "pattern_texture")
-        img_tex_fpath = FPATHS[
-            'recipient_patterns'][img_key][res_key]
-        img = maybe_load_image(img_tex_fpath)
-        assign_image_to_nodes(obj__, nodes, img, img_tex_fpath)
-
 def hrdc_roughness_texture_updt(slf, context):
     obj__ = context.active_object
     material = hrdc_get_asset_material(
@@ -11898,15 +11875,6 @@ def set_geonode_color_input(mod, identifier, value):
     # print(f'set_geonode_color_input({mod.name}, {identifier}, {value})')
     for i in range(len(value)):
         geonode_input_set_component(mod, identifier, i, value[i])
-
-# params: obj__, FILL_NG_NAME, 'Liquid Shader', 'material', material)
-def set_geonode_mod_input(obj__, mod_name, input_name, input_type_key, value):
-    mod = get_geonodes_modifier__by_mod_name(obj__, mod_name)
-    identifier = get_geonodes_field_identifier(mod, input_name)
-    if input_type_key == 'color':
-        set_geonode_color_input(mod, identifier, value)
-    else:
-        geonode_input_set(mod, identifier, value)
 
 json_decoded_value_parser = {
     'bool': {'True': True, 'False': False},
