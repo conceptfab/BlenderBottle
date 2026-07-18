@@ -7282,54 +7282,70 @@ def load_images_and_assemble_ids(preview_collection, filepath_data, fpath_prepro
 preview_collections = {}
 preview_img_ids = {}
 
-preview_collections['icons'] = new_preview_collection(FPATHS['icons_root'])
-preview_img_ids['icons'] = load_images_and_assemble_ids(preview_collections['icons'],
-                                                        FPATHS['icons'])
-
-preview_collections['material_thumbnails'] = new_preview_collection(FPATHS['material_thumbnails_root'])
-preview_img_ids['material_thumbnails'] = load_images_and_assemble_ids(preview_collections['material_thumbnails'],
-                                                                      FPATHS['material_thumbnails'])
-
-preview_collections['pattern_thumbnails'] = new_preview_collection(FPATHS['recipient_patterns_root'])
-preview_img_ids['pattern_thumbnails'] = load_images_and_assemble_ids(
-    preview_collections['pattern_thumbnails'],
-    FPATHS['recipient_patterns'],
-    fpath_preprocess_f=lambda fpath_data, key: fpath_data[key]['256'])
-
-preview_collections['roughness_thumbnails'] = new_preview_collection(FPATHS['recipient_roughness_maps_root'])
-preview_img_ids['roughness_thumbnails'] = load_images_and_assemble_ids(
-    preview_collections['roughness_thumbnails'],
-    FPATHS['recipient_roughness_maps'],
-    fpath_preprocess_f=lambda fpath_data, key: fpath_data[key]['256'])
-
-# These data structures are to be populated dynamically. At init time, they are empty.
-preview_collections['user_defined_pattern_thumbnails'] = new_preview_collection()
-preview_img_ids['user_defined_pattern_thumbnails'] = {}
-
-# These data structures are to be populated dynamically. At init time, they are empty.
-preview_collections['user_defined_roughness_thumbnails'] = new_preview_collection()
-preview_img_ids['user_defined_roughness_thumbnails'] = {}
-
-# def get_recipient_asset_key_from_thumbnail_name(thumbnail_name):
-#     if preview_recipient_asset_names[thumbnail_name]:
-#         return preview_recipient_asset_names[thumbnail_name]
-#     else:
-#         return thumbnail_name
 def get_recipient_asset_key_from_thumbnail_name(thumbnail_name):
-    # print(f'def get_recipient_asset_key_from_thumbnail_name({thumbnail_name}):')
     return next(filter(lambda key: RECIPIENT_ASSET_NAME_DATA[key]['thumbnail'] == thumbnail_name,
                        RECIPIENT_ASSET_NAME_DATA.keys()))
 
-preview_collections['recipient_asset_thumbnails'] = new_preview_collection(FPATHS['recipient_asset_thumbnails_root'])
-preview_img_ids['recipient_asset_thumbnails'] = load_images_and_assemble_ids(
-    preview_collections['recipient_asset_thumbnails'],
-    FPATHS['recipient_asset_thumbnails'],
-    img_key_f=get_recipient_asset_key_from_thumbnail_name)
+def _load_preview_collections():
+    # Loaded in register() (not at import) so enabling the addon has no
+    # side effects and unregister() can release the ~120 images cleanly.
+    if preview_collections:
+        return  # already loaded (idempotent across enable/disable cycles)
+    preview_collections['icons'] = new_preview_collection(FPATHS['icons_root'])
+    preview_img_ids['icons'] = load_images_and_assemble_ids(
+        preview_collections['icons'], FPATHS['icons'])
+
+    preview_collections['material_thumbnails'] = new_preview_collection(
+        FPATHS['material_thumbnails_root'])
+    preview_img_ids['material_thumbnails'] = load_images_and_assemble_ids(
+        preview_collections['material_thumbnails'], FPATHS['material_thumbnails'])
+
+    preview_collections['pattern_thumbnails'] = new_preview_collection(
+        FPATHS['recipient_patterns_root'])
+    preview_img_ids['pattern_thumbnails'] = load_images_and_assemble_ids(
+        preview_collections['pattern_thumbnails'],
+        FPATHS['recipient_patterns'],
+        fpath_preprocess_f=lambda fpath_data, key: fpath_data[key]['256'])
+
+    preview_collections['roughness_thumbnails'] = new_preview_collection(
+        FPATHS['recipient_roughness_maps_root'])
+    preview_img_ids['roughness_thumbnails'] = load_images_and_assemble_ids(
+        preview_collections['roughness_thumbnails'],
+        FPATHS['recipient_roughness_maps'],
+        fpath_preprocess_f=lambda fpath_data, key: fpath_data[key]['256'])
+
+    # Populated dynamically; empty at load time.
+    preview_collections['user_defined_pattern_thumbnails'] = new_preview_collection()
+    preview_img_ids['user_defined_pattern_thumbnails'] = {}
+    preview_collections['user_defined_roughness_thumbnails'] = new_preview_collection()
+    preview_img_ids['user_defined_roughness_thumbnails'] = {}
+
+    preview_collections['recipient_asset_thumbnails'] = new_preview_collection(
+        FPATHS['recipient_asset_thumbnails_root'])
+    preview_img_ids['recipient_asset_thumbnails'] = load_images_and_assemble_ids(
+        preview_collections['recipient_asset_thumbnails'],
+        FPATHS['recipient_asset_thumbnails'],
+        img_key_f=get_recipient_asset_key_from_thumbnail_name)
+
+def _unload_preview_collections():
+    for pcol in preview_collections.values():
+        try:
+            previews.remove(pcol)
+        except Exception:
+            pass
+    preview_collections.clear()
+    preview_img_ids.clear()
 
 preview_data = {
     'collections': preview_collections,
     'ids': preview_img_ids
 }
+
+# Load at import: the module-level EnumProperty item lists below embed
+# preview icon ids, so the collections must exist before they are built.
+# register() calls this again (idempotent) to reload after a disable/enable
+# released the collections; unregister() releases them (fixes the leak).
+_load_preview_collections()
 
 def preview_icon_id(key):
     """Custom preview icon id, or 0 if missing/unloaded.
@@ -16894,12 +16910,11 @@ if DEV:
     dev_aux_unregistration = lambda: repl.unregister()
 
 def register():
-    print()
-    print('LIQUIFEEL: register()')
+    _load_preview_collections()
     classes_to_register = get_classes()
     for cls in classes_to_register:
-        print('registering class:', cls)
         bpy.utils.register_class(cls)
+    print(f'LIQUIFEEL: registered {len(classes_to_register)} classes')
 
     bpy.types.Scene.liquifeel_general_controls = bpy.props.PointerProperty(type=GeneralUIControls)
     bpy.types.Scene.liquifeel_misc_data = bpy.props.PointerProperty(type=MiscData)
@@ -16920,13 +16935,10 @@ def register():
     # bpy.app.handlers.frame_change_post.append(animation_prop_update_handler)
     
 def unregister():
-    print()
-    print('LIQUIFEEL: unregister()')
     _unregister_separate_timers()
     _mesh_island_count_cache.clear()
     classes_to_unregister = get_classes()
     for cls in classes_to_unregister:
-        print('unregistering class:', cls)
         bpy.utils.unregister_class(cls)
     del bpy.types.Scene.liquifeel_general_controls
     del bpy.types.Scene.liquifeel_misc_data
@@ -16938,6 +16950,8 @@ def unregister():
 
     if DEV:
         dev_aux_unregistration()
+
+    _unload_preview_collections()
 
     # # Animation
     # if animation_prop_update_handler in bpy.app.handlers.frame_change_post:
