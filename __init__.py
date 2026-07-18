@@ -6776,10 +6776,6 @@ ASSEMBLY_ROLE_EXTRA = 'extra'
 ASSEMBLY_MEMBER_ROLES = {
     ASSEMBLY_ROLE_CORK, ASSEMBLY_ROLE_LABEL, ASSEMBLY_ROLE_EXTRA,
 }
-# Set as Bottle builds on independent COPIES kept in a dedicated top-level
-# collection, so the user's original CAD objects are never modified.
-LIQUIFEEL_COLLECTION_SUFFIX = '_LiquiFeel'
-LQFL_COPY_SUFFIX = '_LFcopy'
 
 def _normalize_assembly_dict(asm):
     if asm is None:
@@ -7216,11 +7212,6 @@ def assign_assembly_role(controller, member, role):
     if not ok:
         return False, err
     ensure_assembly_controller(controller)
-    # Build on a COPY of the part; the original CAD object stays untouched.
-    col = get_liquifeel_collection(controller)
-    if col is not None and not is_lqfl_copy_object(member):
-        member = clone_object_into_liquifeel_collection(
-            bpy.context, member, col, controller_name=controller.name)
     asm = get_assembly_dict(controller)
     if role == ASSEMBLY_ROLE_CORK:
         old = resolve_assembly_cork(controller)
@@ -7495,16 +7486,6 @@ def clear_assembly_role(controller, role, extra_name=None):
 def clear_assembly(controller):
     if not has_assembly(controller):
         return False, 'Object has no assembly.'
-    col = get_liquifeel_collection(controller)
-    if col is not None:
-        # The controller and all members are work copies inside the collection;
-        # deleting the collection removes them all. Originals stay untouched.
-        try:
-            remove_liquifeel_collection(bpy.context, controller)
-        except Exception:
-            pass
-        return True, ''
-    # No work-copy collection (legacy assembly): just unparent + clear markers.
     for member in list_assembly_member_objects(controller):
         _detach_assembly_member(member)
     clear_assembly_dict(controller)
@@ -7859,141 +7840,28 @@ def _unique_collection_name(base_name):
         i += 1
     return name
 
-## LIQUIFEEL WORK-COPY COLLECTION -------------------------------------------
-# Set as Bottle builds the assembly on independent COPIES kept in a dedicated
-# top-level collection, so the user's original CAD objects are never modified.
-# Clear deletes the collection and every copy in it; originals stay untouched.
-
-def is_lqfl_copy_object(obj__):
-    if obj__ is None:
-        return False
-    return bool(_lqfl_marker_get(obj__).get('lqfl_copy'))
-
-def _set_bottle_marker_key(bottle, key, value):
-    marker = dict(_lqfl_marker_get(bottle)) if _lqfl_marker_get(bottle) else {}
-    if 'version' not in marker:
-        marker['version'] = bl_info['version']
-    marker[key] = value
-    _lqfl_marker_set(bottle, marker)
-
-def get_liquifeel_collection(controller):
-    """The controller's work-copy collection if it exists, else None."""
-    if controller is None:
+def move_objects_to_new_collection(context, objects, base_name):
+    """Create a new collection and put the given objects only there."""
+    objs = [o for o in objects if o is not None]
+    if not objs:
         return None
-    name = _lqfl_marker_get(controller).get('collection') or ''
-    if name and name in bpy.data.collections:
-        return bpy.data.collections[name]
-    return None
-
-def create_liquifeel_collection(context, base_name):
-    """A new, empty collection at the top (directly under Scene Collection)."""
-    col = bpy.data.collections.new(_unique_collection_name(base_name))
-    context.scene.collection.children.link(col)
-    return col
-
-def _clone_subtree(src):
-    """Independent clone of src + all descendants. Returns (root, [all clones])."""
-    order = []
-    seen = set()
-    stack = [src]
-    while stack:
-        o = stack.pop()
-        if o is None or o in seen:
-            continue
-        seen.add(o)
-        order.append(o)
-        for ch in o.children:
-            stack.append(ch)
-    mapping = {}
-    for o in order:
-        c = o.copy()
-        if o.data is not None:
-            c.data = o.data.copy()
-        mapping[o] = c
-    for o in order:
-        mapping[o].parent = mapping.get(o.parent)  # None for the root
-    return mapping[src], [mapping[o] for o in order]
-
-def clone_object_into_liquifeel_collection(context, src, col, controller_name=''):
-    """Put a VISIBLE independent copy of src (+ its whole subtree) into col, and
-    only there. The original src is never moved or altered. Returns the root
-    copy (parts often carry child Shape objects — those are cloned too)."""
-    root, clones = _clone_subtree(src)
-    for c in clones:
-        # Wipe the marker copied from the original; tag as a LiquiFeel copy.
-        _lqfl_marker_set(c, {
-            'lqfl_copy': True,
-            'controller': controller_name,
-            'version': bl_info['version'],
-        })
-        for cc in list(c.users_collection):
-            cc.objects.unlink(c)
-        if c.name not in col.objects:
-            col.objects.link(c)
-    root.name = f'{src.name}{LQFL_COPY_SUFFIX}'  # Blender dedupes on clash
-    if root.data is not None:
-        root.data.name = root.name
-    try:
-        root.matrix_world = src.matrix_world.copy()
-    except Exception:
-        pass
-    return root
-
-def make_bottle_geometry_backup(context, bottle_copy, col, original_name):
-    """Add a hidden, independent backup copy of the bottle geometry to col."""
-    backup = bottle_copy.copy()
-    if bottle_copy.data is not None:
-        backup.data = bottle_copy.data.copy()
-    backup.parent = None
-    backup.name = f'{original_name}{LIQUIFEEL_COLLECTION_SUFFIX}_backup'
-    if backup.data is not None:
-        backup.data.name = backup.name
-    _lqfl_marker_set(backup, {
-        'lqfl_copy': True,
-        'lqfl_backup': True,
-        'controller': bottle_copy.name,
-        'version': bl_info['version'],
-    })
-    backup.hide_viewport = True
-    backup.hide_render = True
-    backup.hide_select = True
-    for cc in list(backup.users_collection):
-        cc.objects.unlink(backup)
-    if backup.name not in col.objects:
-        col.objects.link(backup)
-    return backup
-
-def find_bottle_backup(controller):
-    """The hidden geometry-backup copy inside the controller's collection."""
-    col = get_liquifeel_collection(controller)
-    if col is None:
-        return None
-    for o in col.objects:
-        if _lqfl_marker_get(o).get('lqfl_backup'):
-            return o
-    return None
-
-def remove_liquifeel_collection(context, controller):
-    """Delete the work-copy collection and EVERY copy in it (including the
-    controller copy). Objects outside the collection are untouched."""
-    col = get_liquifeel_collection(controller)
-    if col is None:
-        return
-    for o in list(col.objects):
-        mesh = o.data if o.type == 'MESH' else None
-        try:
-            bpy.data.objects.remove(o, do_unlink=True)
-        except Exception:
-            pass
-        if mesh is not None and mesh.users == 0:
-            try:
-                bpy.data.meshes.remove(mesh)
-            except Exception:
-                pass
-    try:
-        bpy.data.collections.remove(col)
-    except Exception:
-        pass
+    col_name = _unique_collection_name(base_name)
+    new_col = bpy.data.collections.new(col_name)
+    # Parent under the same collection hierarchy as the first object when possible.
+    parent_col = None
+    for col in objs[0].users_collection:
+        parent_col = col
+        break
+    if parent_col is not None:
+        parent_col.children.link(new_col)
+    else:
+        context.scene.collection.children.link(new_col)
+    for obj__ in objs:
+        for col in list(obj__.users_collection):
+            col.objects.unlink(obj__)
+        if obj__.name not in new_col.objects:
+            new_col.objects.link(obj__)
+    return new_col
 
 def teardown_separate_liquid_object(context, src):
     global _separate_objects_last_sig
@@ -10626,29 +10494,13 @@ class AssemblySetBottle(bpy.types.Operator):
             and not is_assembly_member_object(obj__))
 
     def execute(self, context):
-        src = context.active_object
+        obj__ = context.active_object
         try:
-            # Build on a COPY inside a new top-level collection, so the user's
-            # original CAD object is never modified. The copy becomes the bottle.
-            if is_lqfl_copy_object(src) and has_assembly(src):
-                obj__ = src  # already a work-copy bottle; don't re-copy
-            else:
-                col = create_liquifeel_collection(
-                    context, f'{src.name}{LIQUIFEEL_COLLECTION_SUFFIX}')
-                obj__ = clone_object_into_liquifeel_collection(context, src, col)
-                bpy.ops.object.select_all(action='DESELECT')
-                obj__.select_set(True)
-                context.view_layer.objects.active = obj__
             ok, err = prepare_bottle_world_pose(context, obj__)
             if not ok:
                 self.report({'ERROR'}, err)
                 return {'CANCELLED'}
             ensure_assembly_controller(obj__)
-            if not (is_lqfl_copy_object(src) and has_assembly(src)):
-                _set_bottle_marker_key(obj__, 'lqfl_copy', True)
-                _set_bottle_marker_key(obj__, 'collection', col.name)
-                # Hidden geometry backup of the bottle, also in the collection.
-                make_bottle_geometry_backup(context, obj__, col, src.name)
             set_scene_assembly_bottle(context, obj__)
             try:
                 context.scene.liquifeel_general_controls.assembly_bottle = obj__
@@ -10659,8 +10511,8 @@ class AssemblySetBottle(bpy.types.Operator):
             return {'CANCELLED'}
         self.report(
             {'INFO'},
-            f"Bottle copy '{obj__.name}' created in its own collection. "
-            'Original left untouched. Drop other parts into the slots below.')
+            f"Bottle = '{obj__.name}' (unparented / transforms applied). "
+            'Drop other parts into the slots below.')
         sync_assembly_ui_slots(context, obj__)
         return {'FINISHED'}
 registerable_classes.append(AssemblySetBottle)
@@ -10966,7 +10818,6 @@ class AssemblyClear(bpy.types.Operator):
         ctrl = _assembly_find_controller(context)
         if ctrl is None:
             return {'CANCELLED'}
-        ctrl_name = ctrl.name  # ctrl may be deleted with its work-copy collection
         ok, err = clear_assembly(ctrl)
         if not ok:
             self.report({'ERROR'}, err)
@@ -10982,7 +10833,7 @@ class AssemblyClear(bpy.types.Operator):
         except Exception:
             pass
         sync_assembly_ui_slots(context, None)
-        self.report({'INFO'}, f"Cleared assembly '{ctrl_name}' (deleted copies).")
+        self.report({'INFO'}, f"Cleared assembly on '{ctrl.name}'.")
         return {'FINISHED'}
 registerable_classes.append(AssemblyClear)
 
@@ -11024,8 +10875,66 @@ def collect_node_group_deps(ng, acc):
 
 # node groups and materials - including the nested sub-groups that the main
 # groups pull in (Liquid Boolean, Liquid Surface, ...). Those are appended
+def _is_lqfl_generated_collection_name(name):
+    """A LiquiFeel work-copy collection: '<x>_LiquiFeel' or '<x>_LiquiFeel.001'."""
+    base = '_LiquiFeel'
+    if name.endswith(base):
+        return True
+    idx = name.rfind(base + '.')
+    return idx != -1 and name[idx + len(base) + 1:].isdigit()
+
+def _is_lqfl_generated_object_name(name):
+    """A LiquiFeel work-copy/backup object left over from copy-based builds."""
+    for tag in ('_LFcopy', '_LiquiFeel_backup'):
+        idx = name.find(tag)
+        if idx == -1:
+            continue
+        tail = name[idx + len(tag):]
+        if tail == '' or (tail.startswith('.') and tail[1:].isdigit()):
+            return True
+    return False
+
+def purge_liquifeel_work_copies(context):
+    """Delete leftover work-copy/backup objects and the '*_LiquiFeel'
+    collections (identified by name). Originals are never touched. Data-level
+    removals only — no operators, so it can't churn/crash the depsgraph."""
+    removed = {'copies': 0, 'collections': 0}
+    for obj in list(bpy.data.objects):
+        if _is_lqfl_generated_object_name(obj.name):
+            mesh = obj.data if obj.type == 'MESH' else None
+            try:
+                bpy.data.objects.remove(obj, do_unlink=True)
+                removed['copies'] += 1
+            except Exception:
+                continue
+            if mesh is not None and mesh.users == 0:
+                try:
+                    bpy.data.meshes.remove(mesh)
+                except Exception:
+                    pass
+    master = context.scene.collection
+    for col in list(bpy.data.collections):
+        if not _is_lqfl_generated_collection_name(col.name):
+            continue
+        for o in list(col.objects):
+            if not _is_lqfl_generated_object_name(o.name):
+                if o.name not in master.objects:
+                    master.objects.link(o)
+            col.objects.unlink(o)
+        try:
+            bpy.data.collections.remove(col)
+            removed['collections'] += 1
+        except Exception:
+            pass
+    return removed
+
 def deep_clean_liquifeel_data(context):
-    removed = {'modifiers': 0, 'node_groups': 0, 'materials': 0, 'markers': 0}
+    removed = {'modifiers': 0, 'node_groups': 0, 'materials': 0, 'markers': 0,
+               'copies': 0, 'collections': 0}
+    # 0. Remove leftover work-copy/backup objects + '*_LiquiFeel' collections.
+    _copies = purge_liquifeel_work_copies(context)
+    removed['copies'] = _copies['copies']
+    removed['collections'] = _copies['collections']
     # 1. Identify the top-level LiquiFeel groups and their dependency closure.
     #    Snapshot dependency NAMES (stable strings) up front - removing a top
     #    group can cascade-invalidate the datablock references in `deps`.
@@ -11100,7 +11009,8 @@ class DeepCleanLiquifeelData(bpy.types.Operator):
             {'INFO'},
             'LiquiFeel data removed: '
             f"{removed['modifiers']} modifiers, {removed['node_groups']} node groups, "
-            f"{removed['materials']} materials, {removed['markers']} object markers.")
+            f"{removed['materials']} materials, {removed['markers']} object markers, "
+            f"{removed['copies']} work-copy objects, {removed['collections']} collections.")
         return {'FINISHED'}
 registerable_classes.append(DeepCleanLiquifeelData)
 
@@ -11733,8 +11643,12 @@ def apply_fill(context):
         mw = liquid_obj.matrix_world.copy()
         liquid_obj.parent = obj__
         liquid_obj.matrix_world = mw
-        # The bottle here is already a work COPY in its own LiquiFeel
-        # collection; the liquid was just parented to it. Nothing to relocate.
+        # Bottle + liquid + assembly members in a fresh Outliner collection.
+        assembly_members = list_assembly_member_objects(obj__)
+        move_objects_to_new_collection(
+            context,
+            [obj__, liquid_obj] + assembly_members,
+            f'{obj__.name}_LiquiFeel')
         return
 
     teardown_separate_liquid_object(context, obj__)

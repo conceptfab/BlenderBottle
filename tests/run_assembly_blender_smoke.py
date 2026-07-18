@@ -80,132 +80,94 @@ def main():
 
     bottle = mesh_obj('Bottle', (0, 0, 0))
     cork = mesh_obj('Cork', (0, 0, 0.6))
-    cork_child = mesh_obj('CorkShape', (0, 0, 0.6))
-    cork_child.parent = cork
     label = mesh_obj('Label', (0.15, 0, 0.25))
     extra = mesh_obj('Extra', (-0.15, 0, 0.25))
-    bottle_home = set(c.name for c in bottle.users_collection)
 
     select_active(bottle)
     result = bpy.ops.liquifeel.assembly_set_bottle()
-    ctrl = mod.get_scene_assembly_bottle(bpy.context)
     if 'FINISHED' not in result:
         fail(f'Set as Bottle: {result}')
-    elif ctrl is None or not mod.has_assembly(ctrl):
-        fail('No controller assembly after Set as Bottle')
+    elif not mod.has_assembly(bottle):
+        fail('Bottle missing assembly marker after Set as Bottle')
     else:
         ok('Set as Bottle')
 
-    # --- Feature: build on COPIES. The controller is a COPY of the selected
-    #     object; the ORIGINAL is left untouched outside the collection. ---
-    if ctrl is not None and (ctrl is bottle or not mod.is_lqfl_copy_object(ctrl)
-                             or ctrl.data is bottle.data):
-        fail('controller is not an independent copy of the original')
-    else:
-        ok('Set as Bottle built a working COPY as the controller')
-
-    lqfl_col = mod.get_liquifeel_collection(ctrl)
-    if lqfl_col is None:
-        fail('Set as Bottle did not create a collection')
-    elif ctrl.name not in lqfl_col.objects:
-        fail('working bottle copy is not in the collection')
-    elif bottle.name in lqfl_col.objects:
-        fail('ORIGINAL bottle ended up in the collection (must stay out)')
-    elif set(c.name for c in bottle.users_collection) != bottle_home:
-        fail('original bottle was moved out of its collection')
-    else:
-        ok('collection holds the working copy; original left in place')
-
-    backup = mod.find_bottle_backup(ctrl)
-    if backup is None:
-        fail('no hidden bottle backup in the collection')
-    elif lqfl_col is not None and backup.name not in lqfl_col.objects:
-        fail('bottle backup is not in the collection')
-    elif backup.data is ctrl.data or backup.data is bottle.data:
-        fail('bottle backup is not an independent copy')
-    elif not (backup.hide_viewport and backup.hide_render):
-        fail('bottle backup is not hidden')
-    else:
-        ok('collection holds a hidden independent bottle backup')
-
-    # Assign cork (original) -> a COPY (with its child) joins the collection.
     select_active(cork)
     result = bpy.ops.liquifeel.assembly_assign_cork()
-    members = mod.list_assembly_member_objects(ctrl)
-    cork_copy = members[0] if members else None
     if 'FINISHED' not in result:
         fail(f'Assign cork: {result}')
-    elif cork.parent is not None:
-        fail('original cork was reparented (must stay untouched)')
-    elif cork_copy is None or cork_copy is cork:
-        fail('assigned cork is not a copy')
-    elif cork_copy.parent != ctrl:
-        fail('cork copy is not parented to the bottle copy')
-    elif lqfl_col is not None and cork_copy.name not in lqfl_col.objects:
-        fail('cork copy is not in the collection')
-    elif len([o for o in lqfl_col.objects if o.parent == cork_copy]) < 1:
-        fail('cork child (subtree) was not copied into the collection')
+    elif cork.parent != bottle:
+        fail(f'Cork parent is {cork.parent!r}, expected bottle')
     else:
-        ok('assign cork copied it (with child); original untouched')
+        ok('Assign cork (parented)')
 
     select_active(label)
     result = bpy.ops.liquifeel.assembly_assign_label()
-    if 'FINISHED' not in result or label.parent is not None:
-        fail(f'Assign label failed/moved original: {result}, parent={label.parent}')
+    if 'FINISHED' not in result or label.parent != bottle:
+        fail(f'Assign label failed: {result}, parent={label.parent}')
     else:
-        ok('Assign label (copy)')
+        ok('Assign label')
 
     select_active(extra)
     result = bpy.ops.liquifeel.assembly_add_extra()
-    if 'FINISHED' not in result or extra.parent is not None:
-        fail(f'Add extra failed/moved original: {result}, parent={extra.parent}')
+    if 'FINISHED' not in result or extra.parent != bottle:
+        fail(f'Add extra failed: {result}, parent={extra.parent}')
     else:
-        ok('Add extra (copy)')
+        ok('Add extra')
 
-    members = mod.list_assembly_member_objects(ctrl)
+    members = mod.list_assembly_member_objects(bottle)
     if len(members) != 3:
-        fail(f'Expected 3 member copies, got {len(members)}: {[m.name for m in members]}')
+        fail(f'Expected 3 members, got {len(members)}: {[m.name for m in members]}')
     else:
-        ok('3 member copies linked to the bottle copy')
+        ok('3 children linked in marker')
 
-    m0 = members[0]
-    before = m0.matrix_world.translation.copy()
-    ctrl.location.z += 1.0
+    cork_before = cork.matrix_world.translation.copy()
+    bottle.location.z += 1.0
     bpy.context.view_layer.update()
-    after = m0.matrix_world.translation.copy()
-    if abs((after.z - before.z) - 1.0) > 1e-4:
-        fail(f'member copy did not follow bottle move: dz={after.z - before.z}')
+    cork_after = cork.matrix_world.translation.copy()
+    if abs((cork_after.z - cork_before.z) - 1.0) > 1e-4:
+        fail(f'Cork did not follow bottle move: dz={cork_after.z - cork_before.z}')
     else:
-        ok('member copies follow the bottle copy')
+        ok('Children follow bottle translate')
+
+    bottle.rotation_euler.z = math.radians(45)
+    bpy.context.view_layer.update()
+    if cork.parent != bottle:
+        fail('Cork lost parent after bottle rotate')
+    else:
+        ok('Parent retained after bottle rotate')
 
     cad = bpy.data.objects.new('CAD_Root', None)
     bpy.context.collection.objects.link(cad)
-    mw = ctrl.matrix_world.copy()
-    ctrl.parent = cad
-    ctrl.matrix_world = mw
+    mw = bottle.matrix_world.copy()
+    bottle.parent = cad
+    bottle.matrix_world = mw
     bpy.context.view_layer.update()
-    select_active(ctrl)
+    select_active(bottle)
     result = bpy.ops.liquifeel.bake_parent_transforms()
     if 'FINISHED' not in result:
         fail(f'bake_parent_transforms: {result}')
-    elif ctrl.parent is not None:
-        fail('bottle copy still has parent after bake')
-    elif any(m.parent != ctrl for m in mod.list_assembly_member_objects(ctrl)):
-        fail('member copies lost after bake')
+    elif bottle.parent is not None:
+        fail('Bottle still has parent after bake')
+    elif cork.parent != bottle or label.parent != bottle or extra.parent != bottle:
+        fail('Assembly children lost after bake_parent_transforms')
     else:
-        ok('bake clears CAD parent, keeps member copies')
+        ok('bake_parent clears CAD parent, keeps assembly children')
 
-    # --- Regression: bake FREEZES scale to 1:1 on the bottle COPY ---
+    # --- Regression: bake FREEZES scale to 1:1 with no visible change and
+    #     without dragging children (fill nodes require unit object scale) ---
     def world_verts(o):
         return [(o.matrix_world @ v.co).copy() for v in o.data.vertices]
 
-    scaled_src = mesh_obj('ScaledBottle', (2, 0, 0))
-    scaled_src.scale = (0.1, 0.1, 0.1)
+    scaled = mesh_obj('ScaledBottle', (2, 0, 0))
+    scaled.scale = (0.1, 0.1, 0.1)
     bpy.context.view_layer.update()
-    select_active(scaled_src)
+    select_active(scaled)
     if 'FINISHED' not in bpy.ops.liquifeel.assembly_set_bottle():
         fail('Set scaled bottle failed')
-    scaled = mod.get_scene_assembly_bottle(bpy.context)  # the copy controller
+    scap = mesh_obj('ScaledCork', (2, 0, 0.06))
+    select_active(scap)
+    bpy.ops.liquifeel.assembly_assign_cork()
 
     root = bpy.data.objects.new('SkalaRoot', None)
     bpy.context.collection.objects.link(root)
@@ -216,58 +178,77 @@ def main():
     bpy.context.view_layer.update()
 
     verts_before = world_verts(scaled)
+    cork_world_before = scap.matrix_world.translation.copy()
     select_active(scaled)
     if 'FINISHED' not in bpy.ops.liquifeel.bake_parent_transforms():
         fail('bake on scaled bottle failed')
     bpy.context.view_layer.update()
 
     if abs(scaled.scale.x - 1.0) > 1e-4 or abs(scaled.scale.z - 1.0) > 1e-4:
-        fail(f'Bottle copy scale not frozen to 1:1: scale={tuple(scaled.scale)}')
+        fail(f'Bottle scale not frozen to 1:1: scale={tuple(scaled.scale)}')
     else:
-        ok('Bottle copy scale frozen to 1:1 through bake')
+        ok('Bottle scale frozen to 1:1 through bake')
 
     verts_after = world_verts(scaled)
     max_drift = max(((a - b).length for a, b in zip(verts_before, verts_after)),
                     default=0.0)
     if max_drift > 1e-4:
-        fail(f'Bottle copy appearance changed on bake: drift={max_drift}')
+        fail(f'Bottle appearance changed on bake: max world-vert drift={max_drift}')
     else:
-        ok('Bottle copy appearance preserved through freeze')
+        ok('Bottle appearance preserved through freeze (no physical change)')
 
+    cork_world_after = scap.matrix_world.translation.copy()
+    if (cork_world_after - cork_world_before).length > 1e-3:
+        fail(f'Cork drifted on bake: {(cork_world_after - cork_world_before).length}')
+    else:
+        ok('Cork world position preserved through bake')
+
+    # Silent xform diagnostics last-event (Copy Diagnostics source).
     xkey = mod.XFORM_DIAG_KEY
     if xkey not in scaled.keys():
         fail(f'Missing {xkey} after bake_parent_transforms')
     else:
+        raw = scaled[xkey]
+        xdiag = raw.to_dict() if hasattr(raw, 'to_dict') else dict(raw)
+        if xdiag.get('op') != 'bake_parent_transforms':
+            fail(f"xform diag op={xdiag.get('op')!r} "
+                 f"(expected 'bake_parent_transforms')")
+        elif float(xdiag.get('max_child_drift') or 0.0) > 1e-3:
+            fail(f"xform diag max_child_drift="
+                 f"{xdiag.get('max_child_drift')} (expected <= 1e-3)")
+        else:
+            ok('xform diag last-event recorded on bake')
         bpy.context.view_layer.objects.active = scaled
         report = mod.build_liquifeel_diagnostics(bpy.context)
         if 'Last transform event:' not in report:
             fail('diagnostics report missing Last transform event')
+        elif 'Children (live):' not in report:
+            fail('diagnostics report missing Children (live)')
         elif 'Object orientation:' not in report:
             fail('diagnostics report missing Object orientation')
         else:
-            ok('diagnostics report includes orientation + Last transform')
+            ok('diagnostics report includes orientation + Children + Last transform')
 
-    # Strip fill keys keeps assembly (on the controller copy).
-    marker = dict(mod._lqfl_marker_get(ctrl))
+    marker = dict(mod._lqfl_marker_get(bottle))
     marker['filled'] = True
     marker['separate_liquid'] = 'dummy'
-    mod._lqfl_marker_set(ctrl, marker)
-    mod._lqfl_strip_fill_keys_keep_assembly(ctrl)
-    if not mod.has_assembly(ctrl):
+    mod._lqfl_marker_set(bottle, marker)
+    mod._lqfl_strip_fill_keys_keep_assembly(bottle)
+    if not mod.has_assembly(bottle):
         fail('Assembly lost after strip fill keys')
-    elif 'filled' in mod._lqfl_marker_get(ctrl):
+    elif 'filled' in mod._lqfl_marker_get(bottle):
         fail('filled key still present after strip')
     else:
         ok('Clear-fill strip keeps assembly')
 
     # Marker (de)serialization must survive an IDProperty round-trip.
-    rt = mesh_obj('RoundTrip', (9, 9, 9))
-    clean = mod._lqfl_sanitize_marker(
-        {'role': 'extra', 'controller': ctrl.name,
-         'version': list(mod.bl_info['version']), 'nested': {'a': 1}})
-    mod._lqfl_marker_set(rt, {'assembly': {'members': {}},
-                              'version': clean['version']})
-    if mod._lqfl_marker_get(rt).get('version') is None:
+    sample = {'role': 'extra', 'controller': bottle.name,
+              'version': list(mod.bl_info['version']), 'nested': {'a': 1}}
+    clean = mod._lqfl_sanitize_marker(dict(sample))
+    mod._lqfl_marker_set(cork, {'assembly': {'members': {}},
+                               'version': clean['version']})
+    got = mod._lqfl_marker_get(cork)
+    if got.get('version') is None:
         fail('Marker round-trip lost version')
     else:
         ok('Marker round-trip preserves data')
@@ -311,23 +292,18 @@ def main():
         else:
             ok('mesh island count cached for draw path')
 
-    # --- Feature: Clear deletes the whole work-copy collection (copies +
-    #     backup); every ORIGINAL object stays untouched. ---
-    col_name = lqfl_col.name if lqfl_col else None
-    select_active(ctrl)
+    select_active(bottle)
     result = bpy.ops.liquifeel.assembly_clear()
     if 'FINISHED' not in result:
         fail(f'Clear assembly: {result}')
-    elif col_name in bpy.data.collections:
-        fail('Clear did not remove the LiquiFeel collection')
-    elif bottle.name not in bpy.data.objects:
-        fail('Clear deleted the ORIGINAL bottle')
-    elif cork.name not in bpy.data.objects or cork_child.name not in bpy.data.objects:
-        fail('Clear deleted an ORIGINAL part (only copies should go)')
-    elif set(c.name for c in bottle.users_collection) != bottle_home:
-        fail('original bottle collection changed by Clear')
+    elif mod.has_assembly(bottle):
+        fail('Assembly marker still present after clear')
+    elif cork.parent is not None or label.parent is not None or extra.parent is not None:
+        fail('Members still parented after Clear Assembly')
+    elif cork.name not in bpy.data.objects:
+        fail('Cork object deleted by Clear Assembly')
     else:
-        ok('Clear removed collection (copies + backup); originals intact')
+        ok('Clear Assembly unparents and keeps meshes')
 
     _finish(1 if ERRORS else 0)
 

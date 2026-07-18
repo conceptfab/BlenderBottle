@@ -34,17 +34,10 @@ class AssemblyHelperTests(unittest.TestCase):
         ]:
             self.assertIn(needle, src)
 
-    def test_builds_on_copies_not_originals(self):
+    def test_apply_fill_includes_assembly_members_in_collection(self):
         src = (self.root / '__init__.py').read_text(encoding='utf-8')
-        # Set as Bottle builds on a COPY in a new top-level collection.
-        self.assertIn('def clone_object_into_liquifeel_collection', src)
-        self.assertIn('def make_bottle_geometry_backup', src)
-        self.assertIn('def remove_liquifeel_collection', src)
-        # Members are cloned into the collection at the assign choke point.
-        self.assertIn('clone_object_into_liquifeel_collection(\n'
-                      '            bpy.context, member, col', src)
-        # The old move-based fill relocation must be gone.
-        self.assertNotIn('[obj__, liquid_obj] + assembly_members', src)
+        self.assertIn('[obj__, liquid_obj] + assembly_members', src)
+        self.assertIn('list_assembly_member_objects(obj__)', src)
 
     def test_clear_fill_preserves_assembly(self):
         src = (self.root / '__init__.py').read_text(encoding='utf-8')
