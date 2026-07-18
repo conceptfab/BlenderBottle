@@ -3,7 +3,7 @@ bl_info = {
     "author" : "BlenderMight",
     "description" : "Fill recipient models with liquid.",
     "blender" : (4, 1, 0),
-    "version" : (1, 2),
+    "version" : (1, 5),
     "location" : "View3D > UI",
     "warning" : "",
     "category" : "Interface",
