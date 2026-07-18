@@ -51,26 +51,8 @@ def name_from_key(key):
         map(lambda elem: elem.capitalize(),
             key.split('_')))
 
-def class_name_from_key(key):
-    return ''.join(
-        map(lambda elem: elem.capitalize(),
-            key.split('_')))
 
-def bl_version_lesser(v1, v2):
-    if v1[0] > v2[0]:
-        return False
-    elif v1[1] > v2[1]:
-        return False
-    else:
-        return v1[2] < v2[2]
 
-def bl_version_greater(v1, v2):
-    if v1[0] < v2[0]:
-        return False
-    elif v1[1] < v2[1]:
-        return False
-    else:
-        return v1[2] > v2[2]
 
 def strip_name(name):
     elems = name.split(' ')
@@ -102,9 +84,6 @@ def does_dict_have_key_path(data, key_path):
 
 ## JSON  -------------
 
-def parse_json_string(json_string):
-    data = json.loads(json_string)
-    return data
 
 # Silent last-event transform diagnostics for Copy Diagnostics (not the
 # liquifeel marker — sanitize/strip must not wipe this).
@@ -506,23 +485,6 @@ def getattr_rec(obj__, attr_key_path):
 
 # obsolet, old system, now we use REDUX_INPUT_DATA and it has a
 # different hierarchy.
-def getattr_rec__by_names(
-        obj__, shading_modality_key, library_key, mat_name, target_type, group_name, input_name, prop_key=None):
-    lib_key, mat_key, trgt_key, group_key, prop_key__ = map(
-        key_from_name,
-        [library_key, mat_name, target_type, group_name, input_name])
-    if not(prop_key):
-        prop_key = prop_key__
-    prop_key_chain = [
-        f'liquifeel_field_inputs',
-        f'{shading_modality_key}_shading',
-        f'{lib_key}_inputs',
-        f'{mat_key}',
-        f'{trgt_key}',
-        f'{group_key}',
-        f'{prop_key}',
-    ]
-    return getattr_rec(obj__, prop_key_chain)
 
 # CONCESSION START --------------------------------------------------
 # We refference hierarchically placed properties by recursing up the path.
@@ -541,29 +503,9 @@ def ref_ob_key_pair(obj__, key_chain):
     key_chain__.reverse()
     return ref_ob_key_pair_rec__(obj__, key_chain__)
 
-def ref_input_field_property(
-        obj__, shading_modality_key, library_key, mat_name, target_type, group_name, input_name, prop_key=None):
-    lib_key, mat_key, trgt_key, group_key, prop_key__ = map(
-        key_from_name,
-        [library_key, mat_name, target_type, group_name, input_name])
-    if not(prop_key):
-        prop_key = prop_key__
-    prop_key_chain = [
-        f'liquifeel_field_inputs',
-        f'{shading_modality_key}_shading',
-        f'{lib_key}_inputs',
-        f'{mat_key}',
-        f'{trgt_key}',
-        f'{group_key}',
-        f'{prop_key}',
-    ]
-    return ref_ob_key_pair(obj__, prop_key_chain)
 
 # CONCESSION STOP --------------------------------------------------
 
-def load_image(path):
-    im = bpy.data.images.load(str(path))
-    return im
 
 def maybe_load_image(path):
     fname = path.name
@@ -780,24 +722,8 @@ MAIN_TAB_BUILTIN_ICONS = {
 
 ## FILEPATH ----------
 
-def has_extension(fname, extension):
-    return get_extension(fname).lower() == extension
 
-def has_image_extension(fname):
-    return any(
-        map(lambda ext: has_extension(fname, ext),
-            image_file_extensions))
 
-def get_fname_with_name(patterns_folderpath, img_name, extension=None, img_extension=False):
-    fnames = filter(lambda fname: name_from_fname(fname) == img_name,
-                    os.listdir(patterns_folderpath))
-    if extension:
-        return next(filter(lambda fname: has_extension(fname, extension),
-                           fnames))
-    elif img_extension:
-        return next(filter(has_image_extension,fnames))
-    else:
-        return next(fnames)
 
 ## PATH DATA ---
 
@@ -7888,11 +7814,6 @@ def get_object_vertex_groups_items_f():
 #     }
 # }
 
-def get_declaration_modality_key(redux_input_data):
-    if redux_input_data['ui_input_type'] in prop_gens_by_type.keys():
-        return 'synthetic'
-    else:
-        return 'manual'
 
 # def declare_and_register_synthetic_prop_parent(
 #         main_tab_key, target_attachment_key, shading_modality_key=None):
@@ -11802,8 +11723,6 @@ def maybe_install_material_auxiliary_modifiers(obj__, library_key, material_name
 
 ## MATERIALS ----------------------------
 
-def is_shader_node_group(node):
-    return type(node) == bpy.types.ShaderNodeGroup
 
 def get_shader_ng_by_name(material, ng_name):
     # print()
@@ -14206,35 +14125,11 @@ if DEV:
 
 # MODIFIER STACK SCHEMA ----
 
-def extract_mod_stack_ng_name_list(obj__):
-    return list(
-        map(lambda mod__: mod__.node_group.name,
-            filter(lambda mod__: mod__.type == 'NODES',
-                   obj__.modifiers[:])))
             
 # CONGLOMERATED DATA ACQUISITION ----
 
-def get_slot_material_named_closest(obj__, aprox_mat_name):
-    return sorted(
-        obj__.data.materials[:],
-        key=lambda mat__: levenshtein_distance(aprox_mat_name, mat__.name),
-        reverse=False
-    )[0]
 
-def is_tagged_material_name_f(tag_mat_name):
-    def f(mat__):
-        if 'liquifeel' in mat__.keys():
-            return mat__['liquifeel']['name'] == tag_mat_name
-        return False
-    return f
 
-def maybe_get_slot_material_by_tagged_mat_name(obj__, tag_mat_name):
-    try:
-        return next(filter(
-            is_tagged_material_name_f(tag_mat_name),
-            obj__.data.materials[:]))
-    except:
-        return None
 
 # def extract_legacy_asset_configuration_metadata(obj__):
 #     outbound = {}
@@ -14637,12 +14532,6 @@ pattern_ui_input_order = [
     'Pattern Tiling'
 ]
 outside_pattern_ui_input_order = len(pattern_ui_input_order) + 1
-def pattern_ui_input_order_sorting_metric(extended_input_data):
-    ui_input_name = extended_input_data['input_key']
-    if ui_input_name in pattern_ui_input_order:
-        return pattern_ui_input_order.index(ui_input_name)
-    else:
-        return outside_pattern_ui_input_order
 
 
 
