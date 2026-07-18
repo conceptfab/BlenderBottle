@@ -280,6 +280,18 @@ def main():
     else:
         ok('Opening Type straight resets Select Outer Lip Threshold to 0')
 
+    # --- Island-count cache: draw path must not recount on every redraw ---
+    if not mod.has_obj_single_mesh_island(bottle):
+        fail('bottle cube should be a single mesh island')
+    elif bottle.name not in mod._mesh_island_count_cache:
+        fail('island count was not cached after has_obj_single_mesh_island')
+    else:
+        cached = mod._mesh_island_count_cache[bottle.name]
+        if cached[2] != 1:
+            fail(f'cached island count is {cached[2]}, expected 1')
+        else:
+            ok('mesh island count cached for draw path')
+
     select_active(bottle)
     result = bpy.ops.liquifeel.assembly_clear()
     if 'FINISHED' not in result:

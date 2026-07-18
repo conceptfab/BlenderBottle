@@ -603,17 +603,28 @@ def follow_edges(starting_index, paths):
 def count_mesh_islands(obj__):
     # Prepare the paths/links from each vertex to others
     graph = get_vert_graph(obj__.data.vertices, obj__.data.edges)
-    found = True
     n = 0
-    while found:
-        try:
-            # Get one input as long there is one
-            starting_index = next(iter(graph.keys() ) )
-            n = n + 1
-            # Deplete the graph dictionary following this starting index
-            follow_edges(starting_index, graph)
-        except:
-            found = False
+    while graph:
+        starting_index = next(iter(graph))
+        n += 1
+        # Deplete the graph dictionary following this starting index
+        follow_edges(starting_index, graph)
+    return n
+
+# Draw-path cache: keyed on object name, invalidated by vert/edge count
+# change. Island topology cannot change in Object Mode without those counts
+# changing. {obj_name: (vert_count, edge_count, island_count)}
+_mesh_island_count_cache = {}
+
+def count_mesh_islands_cached(obj__):
+    mesh = obj__.data
+    vert_c = len(mesh.vertices)
+    edge_c = len(mesh.edges)
+    hit = _mesh_island_count_cache.get(obj__.name)
+    if hit is not None and hit[0] == vert_c and hit[1] == edge_c:
+        return hit[2]
+    n = count_mesh_islands(obj__)
+    _mesh_island_count_cache[obj__.name] = (vert_c, edge_c, n)
     return n
 
 def get_mesh_island_vert_counts(obj__):
@@ -12030,7 +12041,7 @@ def hrdc_set_asset_material(obj__, material, shading_modality_key):
 ## GEOMETRY ----------------------------
 
 def has_obj_single_mesh_island(obj__):
-    return count_mesh_islands(obj__) == 1
+    return count_mesh_islands_cached(obj__) == 1
 
 def assert_island_count_f(n):
     def assert_(context, obj__):
@@ -16944,6 +16955,7 @@ def unregister():
     print()
     print('LIQUIFEEL: unregister()')
     _unregister_separate_timers()
+    _mesh_island_count_cache.clear()
     classes_to_unregister = get_classes()
     for cls in classes_to_unregister:
         print('unregistering class:', cls)
