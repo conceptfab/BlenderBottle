@@ -10,7 +10,7 @@ bl_info = {
 }
 
 # bumped on every local patch, shown in diagnostics to verify which build runs
-ADDON_BUILD_TAG = 'blender52-port-r27'
+ADDON_BUILD_TAG = 'blender52-port-r30-fill-probe'
 
 import bpy
 import mathutils
@@ -28,6 +28,7 @@ from copy import deepcopy
 from pprint import pprint
 
 from .third_party.t3dn_bip import previews
+from . import geometry_diag
 
 import importlib
 
@@ -375,11 +376,48 @@ def bake_parent_transforms(context, obj__):
     after = _xform_diag_capture(context, obj__)
     _xform_diag_record(context, obj__, 'bake_parent_transforms', before, after)
 
-def prepare_bottle_world_pose(context, obj__):
+def freeze_rot_scale_into_mesh(obj__):
+    """Bake object rotation+scale into mesh data without bpy.ops.
+
+    Safer than transform_apply on heavy CAD / freshly cloned meshes (avoids
+    the depsgraph crash that forced the copy-based Set Bottle revert).
+    Location is preserved; scale becomes (1,1,1), rotation zeroed.
+    """
+    if obj__ is None or obj__.type != 'MESH' or obj__.data is None:
+        return
+    # Already unit — nothing to do.
+    scl = obj__.scale
+    rot = obj__.rotation_euler
+    if (
+        abs(scl.x - 1.0) <= 1e-6 and abs(scl.y - 1.0) <= 1e-6 and abs(scl.z - 1.0) <= 1e-6
+        and abs(rot.x) <= 1e-6 and abs(rot.y) <= 1e-6 and abs(rot.z) <= 1e-6
+    ):
+        return
+    # matrix_basis = Loc * Rot * Scale (parent-relative / local).
+    basis = obj__.matrix_basis.copy()
+    loc = basis.to_translation()
+    rs = basis.copy()
+    rs.translation = mathutils.Vector((0.0, 0.0, 0.0))
+    if abs(rs.determinant()) > 1e-12:
+        obj__.data.transform(rs)
+        obj__.data.update()
+    obj__.location = loc
+    obj__.rotation_euler = (0.0, 0.0, 0.0)
+    obj__.scale = (1.0, 1.0, 1.0)
+    obj__.rotation_quaternion = (1.0, 0.0, 0.0, 0.0)
+    try:
+        obj__.rotation_mode = 'XYZ'
+    except Exception:
+        pass
+
+
+def prepare_bottle_world_pose(context, obj__, prefer_safe=False):
     """If bottle sits under a parent: unparent Keep Transform + apply rot/scale.
 
     Same work as the old separate 'Unparent & Apply Transforms' button —
     folded into Set Bottle / Bottle drop. Returns (ok, err).
+
+    prefer_safe=True: no make_single_user / transform_apply (for work-copies).
     """
     if obj__ is None or obj__.type != 'MESH':
         return False, 'Not a mesh.'
@@ -388,8 +426,27 @@ def prepare_bottle_world_pose(context, obj__):
         return (
             False,
             f"'{obj__.name}' is linked from another file. Make it local first.")
+    # Marker check (not is_lqfl_copy_object) — helper is defined later in the file.
+    if prefer_safe or bool(_lqfl_marker_get(obj__).get('lqfl_copy')):
+        if obj__.parent is not None:
+            unparent_keep_transform(obj__)
+            try:
+                context.view_layer.update()
+            except Exception:
+                pass
+        freeze_rot_scale_into_mesh(obj__)
+        return True, ''
     if obj__.parent is not None:
         bake_parent_transforms(context, obj__)
+    else:
+        # Still freeze non-unit scale on originals when already unparented.
+        scl = obj__.scale
+        if not (
+            abs(scl.x - 1.0) <= 1e-4
+            and abs(scl.y - 1.0) <= 1e-4
+            and abs(scl.z - 1.0) <= 1e-4
+        ):
+            bake_parent_transforms(context, obj__)
     return True, ''
 
 ## BLENDER -------------
@@ -585,7 +642,7 @@ def get_mesh_island_vert_counts(obj__):
     return sorted(sizes, reverse=True)
 
 # Checked on the raw mesh (before modifiers), same as count_mesh_islands.
-def diagnose_fill_geometry(obj__):
+def diagnose_fill_geometry(obj__, with_thickness=True):
     mesh = obj__.data
     edge_face_counts = {}
     for poly in mesh.polygons:
@@ -607,7 +664,9 @@ def diagnose_fill_geometry(obj__):
             boundary_edge_c += 1
         elif face_c > 2:
             non_manifold_edge_c += 1
-    return {
+    scale = obj__.scale
+    scale_applied = all(abs(scale[i] - 1.0) <= 1e-4 for i in range(3))
+    out = {
         'island_sizes': get_mesh_island_vert_counts(obj__),
         'vert_count': len(mesh.vertices),
         'face_count': len(mesh.polygons),
@@ -615,10 +674,17 @@ def diagnose_fill_geometry(obj__):
         'wire_edge_count': wire_edge_c,
         'boundary_edge_count': boundary_edge_c,
         'non_manifold_edge_count': non_manifold_edge_c,
+        'scale': (float(scale[0]), float(scale[1]), float(scale[2])),
+        'scale_applied': scale_applied,
+        'thickness': None,
     }
+    if with_thickness and out['face_count'] > 0:
+        mm = _mesh_mm_unit_factor(obj__)
+        out['thickness'] = geometry_diag.analyze_wall_thickness(obj__, mm)
+    return out
 
 def build_geometry_check_report(obj__):
-    d = diagnose_fill_geometry(obj__)
+    d = diagnose_fill_geometry(obj__, with_thickness=True)
     island_c = len(d['island_sizes'])
     lines = [f"Geometry check for '{obj__.name}':"]
     issue_c = 0
@@ -657,12 +723,117 @@ def build_geometry_check_report(obj__):
             f"[Warning] {d['non_manifold_edge_count']} non-manifold edges (more than 2 faces)")
         lines.append(
             '- these can confuse the interior detection.')
+    if d['scale_applied']:
+        lines.append('[OK] Object scale is applied (1,1,1).')
+    else:
+        sx, sy, sz = d['scale']
+        lines.append(
+            f'[Warning] Scale not applied ({sx:.4g}, {sy:.4g}, {sz:.4g}) — '
+            'Ctrl+A → Rotation & Scale before fill.')
+    if d.get('thickness') is not None:
+        issue_c = geometry_diag.append_thickness_report_lines(
+            lines, d['thickness'], issue_c)
+    issue_c, _probe = geometry_diag.append_fill_geometry_probe_lines(
+        lines, obj__, issue_c)
     if issue_c == 0:
-        lines.append('Verdict: geometry looks suitable for filling.')
-        if d['boundary_edge_count'] > 0 or d['non_manifold_edge_count'] > 0:
+        lines.append('Verdict: basic geometry looks OK.')
+        lines.append(
+            'If Fill still makes no liquid → use "Why No Liquid?" '
+            '(live Fill probe / stage isolation).'
+        )
+        if (
+            d['boundary_edge_count'] > 0
+            or d['non_manifold_edge_count'] > 0
+            or not d['scale_applied']
+        ):
             lines.append('(Warnings above may still affect the fill result.)')
     else:
         lines.append('Verdict: fix the problems above, then fill the object.')
+    return lines
+
+
+def build_why_no_liquid_report(context, obj__):
+    """Geometry probe + temporary live Fill stage isolation."""
+    lines = build_geometry_check_report(obj__)
+    lines.append('')
+    lines.append('--- LIVE FILL PROBE (applies Fill briefly if needed) ---')
+    # Diag GN on top of the stack can poison evaluation — strip for probe.
+    try:
+        geometry_diag.remove_geometry_diag_modifier(obj__)
+    except Exception:
+        pass
+    already = is_obj_filled(obj__)
+    if already:
+        lines.append('Object already has Fill modifiers — probing live stack.')
+    else:
+        try:
+            fill_object(context, obj__)
+        except Exception as exc:
+            lines.append(f'[Problem] fill_object raised: {exc}')
+            return lines
+        if not is_obj_filled(obj__):
+            lines.append(
+                '[Problem] Fill modifiers were NOT created. '
+                'Usually: not exactly 1 mesh island, or linked/override object.'
+            )
+            return lines
+        lines.append('Temporarily applied Select Outer + Fill + Hide Recipient.')
+
+    base_v = len(obj__.data.vertices) if obj__.type == 'MESH' else 0
+    eval_v = _eval_vert_count(context, obj__)
+    lines.append(f'Mesh: base_verts={base_v} evaluated_verts={eval_v}')
+    if isinstance(eval_v, int):
+        if eval_v <= base_v:
+            lines.append(
+                '[Problem] NO LIQUID GENERATED — evaluated verts <= base. '
+                'Boolean / Select Outer produced no liquid mesh.'
+            )
+        else:
+            lines.append(
+                f'[OK] Evaluated mesh grew by {eval_v - base_v} verts '
+                '(liquid geometry present).'
+            )
+    try:
+        lines.extend(diagnose_fill_stage_lines(context, obj__))
+    except Exception as exc:
+        lines.append(f'Stage isolation failed: {exc}')
+
+    # Key fill inputs for scale / seal / overlap debugging
+    try:
+        fmod = get_geonodes_mod_by_ng_name(obj__, FILL_NG_NAME)
+        interesting = (
+            'Liquid Level', 'Wall Overlap', 'Seal', 'Subdivision',
+            'Meniscus Type', 'Meniscus Scale')
+        vals = []
+        for name in interesting:
+            try:
+                ident = get_geonodes_field_identifier(fmod, name)
+                vals.append(f'{name}={geonode_input_get(fmod, ident)}')
+            except Exception:
+                pass
+        if vals:
+            lines.append('Fill inputs: ' + ', '.join(vals))
+        lip_mm = float(obj__.get('liquifeel_lip_mm_factor', _mesh_mm_unit_factor(obj__)))
+        lines.append(
+            f'lip_mm_factor={lip_mm:g} '
+            f'(Select Outer LipThreshold offset ≈ Lip*{lip_mm} in mesh units)'
+        )
+    except Exception as exc:
+        lines.append(f'Fill inputs unavailable: {exc}')
+
+    if not already:
+        try:
+            reset_liquifeel_on_object(obj__)
+            lines.append(
+                'Probe cleanup: temporary Fill modifiers removed. '
+                'Run Fill Active Object again after fixing issues.'
+            )
+        except Exception as exc:
+            lines.append(f'Probe cleanup failed (Fill may still be on): {exc}')
+    lines.append(
+        'Tip: if stage drops verts at Select Outer → fix opening/lip/orientation; '
+        'at Fill → wall thickness / Wall Overlap / Seal / scale units.'
+    )
     return lines
 
 ## CONSTANT DATA --------------------------------------------------------------------------------
@@ -684,6 +855,7 @@ FILL_NG_NAME = 'LiquiFeelv1.3'
 HIDE_RECIPIENT_NG_NAME = 'Hide_Recipient'
 DROPLET_GEN_NG_NAME  = 'DropletGen'
 CONDENSATION_NG_NAME = 'Condensation_V1.0'
+GEOMETRY_DIAG_NG_NAME = geometry_diag.GEOMETRY_DIAG_NG_NAME
 
 UI_THUMB_SCALE = 13.2 * 0.75
 POPUP_THUMB_SCALE = 13.2 / 2
@@ -6776,6 +6948,10 @@ ASSEMBLY_ROLE_EXTRA = 'extra'
 ASSEMBLY_MEMBER_ROLES = {
     ASSEMBLY_ROLE_CORK, ASSEMBLY_ROLE_LABEL, ASSEMBLY_ROLE_EXTRA,
 }
+# Set as Bottle builds on independent COPIES in a dedicated top-level collection
+# so the user's original CAD objects are never modified.
+LIQUIFEEL_COLLECTION_SUFFIX = '_LiquiFeel'
+LQFL_COPY_SUFFIX = '_LFcopy'
 
 def _normalize_assembly_dict(asm):
     if asm is None:
@@ -6863,6 +7039,167 @@ def unparent_keep_transform(child):
     mw = child.matrix_world.copy()
     child.parent = None
     child.matrix_world = mw
+
+## LIQUIFEEL WORK-COPY COLLECTION -------------------------------------------
+# Set as Bottle builds the assembly on independent COPIES in a top-level
+# collection. Clear deletes the collection (copies + backup); originals stay.
+
+def is_lqfl_copy_object(obj__):
+    if obj__ is None:
+        return False
+    return bool(_lqfl_marker_get(obj__).get('lqfl_copy'))
+
+def _set_bottle_marker_key(bottle, key, value):
+    marker = dict(_lqfl_marker_get(bottle)) if _lqfl_marker_get(bottle) else {}
+    if 'version' not in marker:
+        marker['version'] = bl_info['version']
+    marker[key] = value
+    _lqfl_marker_set(bottle, marker)
+
+def get_liquifeel_collection(controller):
+    """The controller's work-copy collection if it exists, else None."""
+    if controller is None:
+        return None
+    name = _lqfl_marker_get(controller).get('collection') or ''
+    if name and name in bpy.data.collections:
+        return bpy.data.collections[name]
+    return None
+
+def create_liquifeel_collection(context, base_name):
+    """A new, empty collection at the top (directly under Scene Collection)."""
+    col = bpy.data.collections.new(_unique_collection_name(base_name))
+    context.scene.collection.children.link(col)
+    return col
+
+def _clone_subtree(src, include_children=True):
+    """Independent clone of src (+ descendants if include_children).
+
+    Returns (root, [all clones]).
+    """
+    order = [src]
+    if include_children:
+        seen = {src}
+        stack = list(src.children)
+        while stack:
+            o = stack.pop()
+            if o is None or o in seen:
+                continue
+            seen.add(o)
+            order.append(o)
+            stack.extend(o.children)
+    mapping = {}
+    for o in order:
+        c = o.copy()
+        if o.data is not None:
+            c.data = o.data.copy()
+        mapping[o] = c
+    for o in order:
+        # Root loses external CAD parent; internal child links are remapped.
+        mapping[o].parent = mapping.get(o.parent)
+    return mapping[src], [mapping[o] for o in order]
+
+def _hide_object_subtree(root, include_children=True):
+    """Hide root (+ its subtree) in the viewport. Non-destructive, reversible."""
+    stack = [root]
+    seen = set()
+    while stack:
+        o = stack.pop()
+        if o is None or o in seen:
+            continue
+        seen.add(o)
+        try:
+            o.hide_set(True)
+        except Exception:
+            pass
+        try:
+            o.hide_viewport = True
+        except Exception:
+            pass
+        if include_children:
+            for ch in o.children:
+                stack.append(ch)
+
+def clone_object_into_liquifeel_collection(
+        context, src, col, controller_name='', include_children=True):
+    """Put an independent copy of src into col only. The original is not moved
+    or altered, only HIDDEN in the viewport so the visible object is the work
+    copy (two overlapping copies would otherwise confuse the user)."""
+    root, clones = _clone_subtree(src, include_children=include_children)
+    for c in clones:
+        _lqfl_marker_set(c, {
+            'lqfl_copy': True,
+            'controller': controller_name,
+            'version': bl_info['version'],
+        })
+        for cc in list(c.users_collection):
+            cc.objects.unlink(c)
+        if c.name not in col.objects:
+            col.objects.link(c)
+    root.name = f'{src.name}{LQFL_COPY_SUFFIX}'
+    if root.data is not None:
+        root.data.name = root.name
+    try:
+        root.matrix_world = src.matrix_world.copy()
+    except Exception:
+        pass
+    # Hide the ORIGINAL(s) we just copied so only the work copy is visible.
+    _hide_object_subtree(src, include_children=include_children)
+    return root
+
+def make_bottle_geometry_backup(context, bottle_copy, col, original_name):
+    """Add a hidden, independent backup copy of the bottle geometry to col."""
+    backup = bottle_copy.copy()
+    if bottle_copy.data is not None:
+        backup.data = bottle_copy.data.copy()
+    backup.parent = None
+    backup.name = f'{original_name}{LIQUIFEEL_COLLECTION_SUFFIX}_backup'
+    if backup.data is not None:
+        backup.data.name = backup.name
+    _lqfl_marker_set(backup, {
+        'lqfl_copy': True,
+        'lqfl_backup': True,
+        'controller': bottle_copy.name,
+        'version': bl_info['version'],
+    })
+    backup.hide_viewport = True
+    backup.hide_render = True
+    backup.hide_select = True
+    for cc in list(backup.users_collection):
+        cc.objects.unlink(backup)
+    if backup.name not in col.objects:
+        col.objects.link(backup)
+    return backup
+
+def find_bottle_backup(controller):
+    """The hidden geometry-backup copy inside the controller's collection."""
+    col = get_liquifeel_collection(controller)
+    if col is None:
+        return None
+    for o in col.objects:
+        if _lqfl_marker_get(o).get('lqfl_backup'):
+            return o
+    return None
+
+def remove_liquifeel_collection(context, controller):
+    """Delete the work-copy collection and every copy in it."""
+    col = get_liquifeel_collection(controller)
+    if col is None:
+        return
+    for o in list(col.objects):
+        mesh = o.data if o.type == 'MESH' else None
+        try:
+            bpy.data.objects.remove(o, do_unlink=True)
+        except Exception:
+            pass
+        if mesh is not None and mesh.users == 0:
+            try:
+                bpy.data.meshes.remove(mesh)
+            except Exception:
+                pass
+    try:
+        bpy.data.collections.remove(col)
+    except Exception:
+        pass
 
 def is_assembly_member_object(obj__):
     if obj__ is None or is_liquid_proxy_object(obj__):
@@ -7212,6 +7549,13 @@ def assign_assembly_role(controller, member, role):
     if not ok:
         return False, err
     ensure_assembly_controller(controller)
+    # Build on a COPY of the part when the bottle lives in a work-copy collection.
+    col = get_liquifeel_collection(controller)
+    if col is not None and not is_lqfl_copy_object(member):
+        member = clone_object_into_liquifeel_collection(
+            bpy.context, member, col,
+            controller_name=controller.name,
+            include_children=True)
     asm = get_assembly_dict(controller)
     if role == ASSEMBLY_ROLE_CORK:
         old = resolve_assembly_cork(controller)
@@ -7486,6 +7830,14 @@ def clear_assembly_role(controller, role, extra_name=None):
 def clear_assembly(controller):
     if not has_assembly(controller):
         return False, 'Object has no assembly.'
+    col = get_liquifeel_collection(controller)
+    if col is not None:
+        # Controller + members + backup are work copies inside the collection.
+        try:
+            remove_liquifeel_collection(bpy.context, controller)
+        except Exception:
+            pass
+        return True, ''
     for member in list_assembly_member_objects(controller):
         _detach_assembly_member(member)
     clear_assembly_dict(controller)
@@ -10286,17 +10638,23 @@ class GeometryCheckPopup(bpy.types.Menu):
             self.layout.label(text=line)
 registerable_classes.append(GeometryCheckPopup)
 
+def _resolve_fill_diag_target(context):
+    obj__ = resolve_liquifeel_source_object(context.active_object)
+    ctrl = resolve_assembly_controller_object(obj__)
+    if ctrl is not None:
+        obj__ = ctrl
+    return obj__
+
+
 class CheckActiveGeometry(bpy.types.Operator):
     bl_idname = 'liquifeel.check_active_geometry'
     bl_label = 'Check Geometry'
     bl_description = (
-        'Verify that the active object is suitable for filling:\n'
-        'single mesh island, no loose geometry, walls with thickness')
+        'Verify fill suitability: islands, loose geo, wall thickness,\n'
+        'opening/mouth, orientation, normals. For live Fill failure use '
+        '"Why No Liquid?"')
     def execute(self, context):
-        obj__ = resolve_liquifeel_source_object(context.active_object)
-        ctrl = resolve_assembly_controller_object(obj__)
-        if ctrl is not None:
-            obj__ = ctrl
+        obj__ = _resolve_fill_diag_target(context)
         if not obj__ or obj__.type != 'MESH':
             self.report({'WARNING'}, 'Active object is not a mesh.')
             return {'CANCELLED'}
@@ -10309,6 +10667,82 @@ class CheckActiveGeometry(bpy.types.Operator):
             bpy.ops.wm.call_menu(name='OBJECT_MT_liquifeel_geometry_check')
         return {'FINISHED'}
 registerable_classes.append(CheckActiveGeometry)
+
+
+class DiagnoseWhyNoLiquid(bpy.types.Operator):
+    bl_idname = 'liquifeel.diagnose_why_no_liquid'
+    bl_label = 'Why No Liquid?'
+    bl_description = (
+        'Deep Fill probe: geometry + temporary Fill + stage isolation\n'
+        '(which modifier kills liquid). Removes temporary Fill if object\n'
+        'was not already filled. Prefer this when Check Geometry passes\n'
+        'but Fill produces nothing.')
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        obj__ = _resolve_fill_diag_target(context)
+        if not obj__ or obj__.type != 'MESH':
+            self.report({'WARNING'}, 'Active object is not a mesh.')
+            return {'CANCELLED'}
+        if context.mode != 'OBJECT':
+            self.report({'WARNING'}, 'Enter Object Mode first.')
+            return {'CANCELLED'}
+        global geometry_check_report_lines
+        geometry_check_report_lines = build_why_no_liquid_report(context, obj__)
+        for line in geometry_check_report_lines:
+            print(line)
+        if bpy.app.background:
+            pass
+        else:
+            bpy.ops.wm.call_menu(name='OBJECT_MT_liquifeel_geometry_check')
+        # Summarize for status bar
+        joined = '\n'.join(geometry_check_report_lines)
+        if 'NO LIQUID GENERATED' in joined:
+            self.report(
+                {'WARNING'},
+                'NO LIQUID GENERATED — see popup / System Console for stage.')
+        elif '[Problem]' in joined:
+            self.report({'WARNING'}, 'Fill probe found problems — see popup.')
+        else:
+            self.report({'INFO'}, 'Fill probe finished — see popup / console.')
+        return {'FINISHED'}
+registerable_classes.append(DiagnoseWhyNoLiquid)
+
+
+class ToggleGeometryDiagPreview(bpy.types.Operator):
+    bl_idname = 'liquifeel.toggle_geometry_diag'
+    bl_label = 'Preview Geometry Diag'
+    bl_description = (
+        'Toggle wall-thickness color paint (LQFL_Diag). '
+        'Not a Fill test — use Why No Liquid? for that.')
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj__ = _resolve_fill_diag_target(context)
+        if not obj__ or obj__.type != 'MESH':
+            self.report({'WARNING'}, 'Active object is not a mesh.')
+            return {'CANCELLED'}
+
+        if geometry_diag.has_geometry_diag_modifier(obj__):
+            geometry_diag.remove_geometry_diag_modifier(obj__)
+            geometry_diag.clear_geometry_diag_colors(obj__)
+            self.report(
+                {'INFO'},
+                'Geometry diag preview OFF. Attribute LQFL_Diag cleared.')
+            return {'FINISHED'}
+
+        mm = _mesh_mm_unit_factor(obj__)
+        thickness = geometry_diag.analyze_wall_thickness(obj__, mm)
+        geometry_diag.paint_geometry_diag_colors(obj__, thickness)
+        rim = max(float(mm) * 0.5, 1e-5)
+        geometry_diag.assign_geometry_diag_modifier(obj__, rim_radius=rim)
+        geometry_diag.set_viewport_attribute_color(context)
+
+        self.report(
+            {'INFO'},
+            'Thickness colors ON. For Fill failure use Why No Liquid?.')
+        return {'FINISHED'}
+registerable_classes.append(ToggleGeometryDiagPreview)
 
 class BakeParentTransforms(bpy.types.Operator):
     bl_idname = 'liquifeel.bake_parent_transforms'
@@ -10478,9 +10912,10 @@ class AssemblySetBottle(bpy.types.Operator):
     bl_idname = 'liquifeel.assembly_set_bottle'
     bl_label = 'Use Active as Bottle'
     bl_description = (
-        'Mark the active mesh as the bottle.\n'
-        'Also unparents it (Keep Transform) and applies rotation/scale\n'
-        'so Fill works under CAD hierarchies — one step')
+        'Create a work-copy of the active mesh as the bottle in a new\n'
+        'top-level collection {name}_LiquiFeel (plus a hidden geometry backup).\n'
+        'Original CAD object is left untouched. Cork/label drops also copy\n'
+        'into that collection.')
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -10494,13 +10929,32 @@ class AssemblySetBottle(bpy.types.Operator):
             and not is_assembly_member_object(obj__))
 
     def execute(self, context):
-        obj__ = context.active_object
+        src = context.active_object
+        col = None
         try:
-            ok, err = prepare_bottle_world_pose(context, obj__)
+            # Build on a COPY inside a new top-level collection so the user's
+            # original CAD object is never modified. The copy becomes the bottle.
+            if is_lqfl_copy_object(src) and has_assembly(src):
+                obj__ = src  # already a work-copy bottle; don't re-copy
+            else:
+                col = create_liquifeel_collection(
+                    context, f'{src.name}{LIQUIFEEL_COLLECTION_SUFFIX}')
+                # Shallow clone (bottle mesh only) — avoids hanging on huge CAD trees.
+                obj__ = clone_object_into_liquifeel_collection(
+                    context, src, col, include_children=False)
+                bpy.ops.object.select_all(action='DESELECT')
+                obj__.select_set(True)
+                context.view_layer.objects.active = obj__
+            # Safe pose freeze: no make_single_user / transform_apply on copies.
+            ok, err = prepare_bottle_world_pose(context, obj__, prefer_safe=True)
             if not ok:
                 self.report({'ERROR'}, err)
                 return {'CANCELLED'}
             ensure_assembly_controller(obj__)
+            if col is not None:
+                _set_bottle_marker_key(obj__, 'lqfl_copy', True)
+                _set_bottle_marker_key(obj__, 'collection', col.name)
+                make_bottle_geometry_backup(context, obj__, col, src.name)
             set_scene_assembly_bottle(context, obj__)
             try:
                 context.scene.liquifeel_general_controls.assembly_bottle = obj__
@@ -10511,8 +10965,9 @@ class AssemblySetBottle(bpy.types.Operator):
             return {'CANCELLED'}
         self.report(
             {'INFO'},
-            f"Bottle = '{obj__.name}' (unparented / transforms applied). "
-            'Drop other parts into the slots below.')
+            f"Bottle copy '{obj__.name}' in collection "
+            f"'{_lqfl_marker_get(obj__).get('collection', '?')}'. "
+            'Original left untouched. Drop other parts into the slots below.')
         sync_assembly_ui_slots(context, obj__)
         return {'FINISHED'}
 registerable_classes.append(AssemblySetBottle)
@@ -10805,8 +11260,9 @@ class AssemblyClear(bpy.types.Operator):
     bl_idname = 'liquifeel.assembly_clear'
     bl_label = 'Clear Assembly'
     bl_description = (
-        'Unparent parts from the bottle and clear assembly markers.\n'
-        'Does not delete objects or clear Fill')
+        'Clear assembly markers.\n'
+        'If the bottle lives in a *_LiquiFeel work-copy collection, deletes\n'
+        'that collection (copies + backup). Original CAD objects stay.')
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -10818,6 +11274,8 @@ class AssemblyClear(bpy.types.Operator):
         ctrl = _assembly_find_controller(context)
         if ctrl is None:
             return {'CANCELLED'}
+        ctrl_name = ctrl.name
+        had_col = get_liquifeel_collection(ctrl) is not None
         ok, err = clear_assembly(ctrl)
         if not ok:
             self.report({'ERROR'}, err)
@@ -10833,7 +11291,13 @@ class AssemblyClear(bpy.types.Operator):
         except Exception:
             pass
         sync_assembly_ui_slots(context, None)
-        self.report({'INFO'}, f"Cleared assembly on '{ctrl.name}'.")
+        if had_col:
+            self.report(
+                {'INFO'},
+                f"Removed work-copy collection for '{ctrl_name}' "
+                '(originals untouched).')
+        else:
+            self.report({'INFO'}, f"Cleared assembly on '{ctrl_name}'.")
         return {'FINISHED'}
 registerable_classes.append(AssemblyClear)
 
@@ -12582,10 +13046,25 @@ def _draw_geometry_ui_impl(context, root_layout):
                         icon_key='geometry',
                         fallback_icon='MESH_DATA',
                     )
-                    root_layout.operator(
+                    check_row = root_layout.row(align=True)
+                    check_row.operator(
                         'liquifeel.check_active_geometry',
                         text='Check Geometry',
                         icon='VIEWZOOM')
+                    check_row.operator(
+                        'liquifeel.diagnose_why_no_liquid',
+                        text='Why No Liquid?',
+                        icon='ERROR')
+                    prev = root_layout.row(align=True)
+                    diag_on = geometry_diag.has_geometry_diag_modifier(obj__)
+                    prev.operator(
+                        'liquifeel.toggle_geometry_diag',
+                        text='Diag OFF' if diag_on else 'Thickness Colors',
+                        icon='HIDE_ON' if diag_on else 'SHADING_SOLID',
+                        depress=diag_on)
+                    tip = root_layout.column(align=True)
+                    tip.scale_y = 0.7
+                    tip.label(text='Fill fails but Check OK? → Why No Liquid?')
         else:
             root_layout.label(
                 text='This object is not composed of a single mesh island.')
@@ -12594,12 +13073,16 @@ def _draw_geometry_ui_impl(context, root_layout):
             root_layout.label(
                 text='make sure it has thickness and a suitable opening')
             draw_bake_parent_transforms_button(obj__, root_layout)
-            check_row = root_layout.row()
+            check_row = root_layout.row(align=True)
             check_row.scale_y = MID_H
             check_row.operator(
                 'liquifeel.check_active_geometry',
                 text='Check Geometry',
                 icon='VIEWZOOM')
+            check_row.operator(
+                'liquifeel.diagnose_why_no_liquid',
+                text='Why No Liquid?',
+                icon='ERROR')
     else:
         root_layout.label(text='Please enter Object Mode.')
 
