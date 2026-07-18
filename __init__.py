@@ -7099,7 +7099,12 @@ def _clone_subtree(src, include_children=True):
     return mapping[src], [mapping[o] for o in order]
 
 def _hide_object_subtree(root, include_children=True):
-    """Hide root (+ its subtree) in the viewport. Non-destructive, reversible."""
+    """Hide root (+ its subtree) with the standard eye toggle (hide_set), so
+    the user sees only the work copy. Reveal any time with Alt+H in the 3D
+    viewport (or the eye icon in the Outliner). Non-destructive.
+
+    Only falls back to hide_viewport if there is no view-layer context
+    (e.g. headless) — in normal use it is a single, clean eye-hide."""
     stack = [root]
     seen = set()
     while stack:
@@ -7110,11 +7115,10 @@ def _hide_object_subtree(root, include_children=True):
         try:
             o.hide_set(True)
         except Exception:
-            pass
-        try:
-            o.hide_viewport = True
-        except Exception:
-            pass
+            try:
+                o.hide_viewport = True
+            except Exception:
+                pass
         if include_children:
             for ch in o.children:
                 stack.append(ch)
