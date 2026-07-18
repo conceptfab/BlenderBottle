@@ -6345,32 +6345,7 @@ for tab in INPUT_FIELD_DATA__PRESERVING_ORDER:
 
 ## ANIMATION ----------
 
-def prop_value_update_f(obj__, data_path):
-    def f():
-        prop_parent, key = ref_ob_key_pair(obj__, data_path.split('.'))
-        setattr(prop_parent, key, getattr(prop_parent, key))
-    return f
 
-def execute_update_hooks_from_obj(obj__):
-    if obj__.animation_data and obj__.animation_data.action:
-        for fcurve in obj__.animation_data.action.fcurves:
-            if 'liquifeel' in fcurve.data_path:
-                hook = prop_value_update_f(obj__, fcurve.data_path)
-                hook()
-    if any([is_obj_library_slot_shaded(obj__, lib_key) for lib_key in ['liquids', 'solids']]):
-        slot_mat = get_asset_material(obj__, shading_modality_key='slot')
-        if slot_mat.animation_data and slot_mat.animation_data.action:
-            for fcurve in slot_mat.animation_data.action.fcurves:
-                if 'liquifeel' in fcurve.data_path:
-                    hook = prop_value_update_f(slot_mat, fcurve.data_path)
-                    hook()
-    if any([is_obj_library_fill_shaded(obj__, lib_key) for lib_key in ['liquids', 'solids']]):
-        fill_mat = get_asset_material(obj__, shading_modality_key='fill')
-        if fill_mat.animation_data and fill_mat.animation_data.action:
-            for fcurve in fill_mat.animation_data.action.fcurves:
-                if 'liquifeel' in fcurve.data_path:
-                    hook = prop_value_update_f(fill_mat, fcurve.data_path)
-                    hook()
 # def update_hooks_from_obj(obj__):
 #     hooks = []
 #     if obj__.animation_data and obj__.animation_data.action:
@@ -6379,11 +6354,6 @@ def execute_update_hooks_from_obj(obj__):
 #                 prop_value_update_f(obj__, fcurve.data_path))
 #     return hooks
 
-@persistent
-def animation_prop_update_handler(scene):
-    # print('animation_prop_update_handler')
-    for obj__ in filter(is_obj_liquifeel_asset, list(scene.objects)):
-        execute_update_hooks_from_obj(obj__)
 # def animation_prop_update_handler(scene):
 #     update_hooks = []
 #     for obj__ in filter(is_obj_liquifeel_asset, list(scene.objects)):
@@ -16378,7 +16348,6 @@ def register():
         dev_aux_registration()
 
     # # Animation
-    # bpy.app.handlers.frame_change_post.append(animation_prop_update_handler)
     
 def unregister():
     _unregister_separate_timers()
@@ -16400,8 +16369,6 @@ def unregister():
     _unload_preview_collections()
 
     # # Animation
-    # if animation_prop_update_handler in bpy.app.handlers.frame_change_post:
-    #     bpy.app.handlers.frame_change_post.remove(animation_prop_update_handler)
 
 if __name__ == '__main__':
     register()
