@@ -23,7 +23,6 @@ import pathlib
 import json
 import functools as ft
 import sys
-import subprocess
 
 from copy import deepcopy
 from pprint import pprint
@@ -413,57 +412,6 @@ def prepare_bottle_world_pose(context, obj__):
     if obj__.parent is not None:
         bake_parent_transforms(context, obj__)
     return True, ''
-
-## PIP -----------------
-
-def upgrade_pip():
-    try:
-        subprocess.run([sys.executable, '-m', 'pip', 'install', '--upgrade', 'pip'], check=True)
-        print(f"pip upgraded successfully.")
-    except subprocess.CalledProcessError:
-        print(f"Failed to upgrade pip. Please do it manually.")
-
-def install_package(package_name):
-    """
-    Attempts to install a package using pip and sys.executable to ensure
-    compatibility across Windows, Linux, and macOS.
-    """
-    try:
-        subprocess.run([sys.executable, '-m', 'pip', 'install', package_name], check=True)
-        print(f"{package_name} installed successfully.")
-    except subprocess.CalledProcessError:
-        print(f"Failed to install {package_name}. Please install it manually.")
-
-def check_and_install_package(package_name, package_import_name=None):
-    try:
-        # Attempt to import the package
-        if package_import_name:
-            __import__(package_import_name)
-        else:
-            __import__(package_name)
-        print(f"{package_name} is already installed.")
-    except ImportError:
-        # The package is not installed; attempt to install
-        upgrade_pip()
-        print(f"{package_name} is not installed. Attempting to install...")
-        install_package(package_name)
-
-# def install_python_package(package_name):
-#     import pip._internal
-#     pip._internal.main(['install', package_name])
-
-# def remove_python_package(package_name):
-#     import pip._internal
-#     pip._internal.main(['remove', package_name])
-
-# remove_python_package('pillow')
-
-# # List installed
-# subprocess.run([sys.executable, '-m', 'pip', 'list'], check=True)
-# # Uninstall
-# subprocess.run([sys.executable, '-m', 'pip', 'uninstall', 'pillow'], check=True)
-
-check_and_install_package('Pillow', package_import_name='PIL')
 
 ## BLENDER -------------
 
