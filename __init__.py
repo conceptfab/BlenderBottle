@@ -6608,25 +6608,6 @@ for main_tab_key, main_tab_data in REDUX_INPUT_DATA.items():
 # -----------------------------------------------------------------------------
 # UNDERLYING INPUT IDENTIFICATION AT RUNTIME
 
-def get_input_field_data_and_path(obj__, redux_input_data, shading_modality_key):
-    if len(redux_input_data['paths']) == 1:
-        # In the case that there is only one underlying input for the ui
-        # input in question, the solution is simple, we just take the
-        # first (and only) input_field_data path.
-        path = redux_input_data['paths'][0]
-    else:
-        # In case there are multiple underlying input for the ui input
-        # in question, we will use the material name to figure which one
-        # of the input_field_data paths represents it.
-        material = get_asset_material(obj__, shading_modality_key=shading_modality_key)
-        material_name = material['liquifeel']['name']
-        path = next(filter(
-            lambda path_: path_['mapping']['material/func_name'] == material_name,
-            redux_input_data['paths']))
-    return (
-        index_hierarchy_by_path(INPUT_FIELD_DATA, path['list']),
-        path
-    )
 
 # -----------------------------------------------------------------------------
 # INPUT SETTING FUNCTION AUGMENTATION
@@ -6881,20 +6862,6 @@ def set_geonode_mod_input(obj__, mod_name, input_name, input_type_key, value):
 #     else:
 #         mod[identifier] = val__
 
-def set_geonode_mod_input__at_prop_update(
-        obj__, prop_parent, input_name, redux_input_data, target_attachment_key, shading_modality_key):
-    input_field_data, path = get_input_field_data_and_path(obj__, redux_input_data, shading_modality_key)
-    ng_name = path['mapping']['group_name']
-    mod = get_geonodes_mod_by_ng_name(obj__, ng_name)
-    identifier = get_geonodes_field_identifier(mod, redux_input_data['underlying_input_name'])
-    val = get_prop_vals(prop_parent, redux_input_data['prop_key'])
-    if input_field_data['ui_input_type'] != input_field_data['underlying_input_type']:
-        if isinstance(input_field_data['ui_to_underlying_val_mapping'], list):
-            val = input_field_data['ui_to_underlying_val_mapping'].index(val)
-        elif isinstance(input_field_data['ui_to_underlying_val_mapping'], dict):
-            val = input_field_data['ui_to_underlying_val_mapping'][val]
-    geonode_mod_setters[input_field_data['underlying_input_type']](
-        mod, identifier, val)
 
 # def set_geonode_mod_input__at_prop_update(
 #         obj__, prop_parent, input_name, redux_input_data, target_attachment_key, shading_modality_key):
@@ -6999,65 +6966,10 @@ def set_shader_node_input(
     else:
         pass
 
-def set_shader_node_input__at_prop_update(
-        obj__, prop_parent, input_name, redux_input_data, target_attachment_key, shading_modality_key):
-    material = get_asset_material(
-        obj__, shading_modality_key=shading_modality_key
-    )
-    set_shader_node_input(
-        obj__, prop_parent, input_name, redux_input_data, material)
 
-def set_shader_ng_input(
-        obj__, prop_parent, input_name, redux_input_data, material, val=None):
-    if not val:
-        val_data = get_prop_vals(prop_parent, redux_input_data['prop_key'])
-    else:
-        val_data = val
-    mat_name = material['liquifeel']['name']
-    path_as_mapping = filter_path_as_mapping_by_material_name(redux_input_data, mat_name)
-    ng_name = path_as_mapping['group_name']
-    ng = get_shader_ng_by_name(material, ng_name)
-    field_name = redux_input_data['underlying_input_name']
-    underlying_type = redux_input_data['underlying_input_type']
-    # if DEV:
-    #     debug_buffer.append(ng.inputs)
-    if underlying_type == 'color' or underlying_type == 'vector':
-        for i in range(len(val_data)):
-            ng.inputs[field_name].default_value[i] = val_data[i]
-    else:
-        ng.inputs[field_name].default_value = val_data
 
-def set_shader_ng_input__at_prop_update(
-        obj__, prop_parent, input_name, redux_input_data, target_attachment_key, shading_modality_key):
-    material = get_asset_material(obj__, shading_modality_key=shading_modality_key)
-    set_shader_ng_input(
-        obj__, prop_parent, input_name, redux_input_data, material)
 
-def set_material_attached_input__at_setup(prop_parent, input_name,
-                                          obj__, redux_input_data, material, val=None):
-    if redux_input_data['unanimous_path_elems']['target_type'] == 'Shader Node':
-        set_shader_node_input(
-            obj__, prop_parent, input_name, redux_input_data, material, val=val)
-    elif redux_input_data['unanimous_path_elems']['target_type'] == 'Shader NG':
-        set_shader_ng_input(
-            obj__, prop_parent, input_name, redux_input_data, material, val=val)
 
-def set_input__at_prop_update(prop_parent, context, input_name, main_tab_key,
-                              target_attachment_key, shading_modality_key):
-    obj__ = context.active_object
-    redux_input_data = REDUX_INPUT_DATA[main_tab_key][target_attachment_key][input_name]
-    if redux_input_data['unanimous_path_elems']['target_type'] == 'GeoNode':
-        set_geonode_mod_input__at_prop_update(
-            obj__, prop_parent, input_name, redux_input_data,
-            target_attachment_key, shading_modality_key)
-    if redux_input_data['unanimous_path_elems']['target_type'] == 'Shader Node':
-        set_shader_node_input__at_prop_update(
-            obj__, prop_parent, input_name, redux_input_data,
-            target_attachment_key, shading_modality_key)
-    elif redux_input_data['unanimous_path_elems']['target_type'] == 'Shader NG':
-        set_shader_ng_input__at_prop_update(
-            obj__, prop_parent, input_name, redux_input_data,
-            target_attachment_key, shading_modality_key)
     # We probably only need to pass the shading modality key to the
     # shader node setters.  This is because the geonode mods are all
     # together in the same stack regardless of shading modality. This
@@ -7690,13 +7602,6 @@ def get_object_vertex_groups_items_f():
         return items
     return f
 
-@undo_push(2)
-def lip_threshold_update(slf, context):
-    if is_obj_filled(context.active_object):
-        set_geonode_mod_input(
-            context.active_object, FILL_NG_NAME, 'Lip Threshold', 'float', getattr(slf, 'lip_threshold'))
-    set_geonode_mod_input(
-        context.active_object, SELECT_OUTER_NG_NAME, 'Lip Threshold', 'float', getattr(slf, 'lip_threshold'))
 
 # ## NEW PROPERTY SYSTEM (EXECD) ---------------------
 
@@ -9598,21 +9503,8 @@ def scene_shader_items(instance, context):
         return []
 
 # @undo_push(2)
-def slot_library_update(slf, context):
-    pass
 
-@undo_push(2)
-def slot_shading_material_update(slf, context):
-    obj__ = context.active_object
-    library_key = getattr(slf, 'library')
-    material_name = getattr(slf, f'{library_key}_material')
-    slot_shade(context, obj__, library_key, material_name)
 
-@undo_push(2)
-def scene_slot_shading_material_update(slf, context):
-    obj__ = context.active_object
-    material_name = getattr(slf, 'scene_material')
-    slot_shade(context, obj__, 'scene', material_name)
 
 
 # # key_chain: ['liquifeel_input_field_props', 'shading', 'slot', 'manual', 'material_selector']
@@ -14157,65 +14049,6 @@ def clear_previous_material(shading_modality_key, obj__):
         remove_material_auxiliary_modifiers(
             obj__, prev_mat_library, prev_material_name)
 
-@undo_push(4)
-def slot_shade(context, obj__, library_key, material_name):
-    # print('slot_shade(context, obj__, library_key, material_name)')
-    # print(f'slot_shade(context, {obj__}, {library_key}, {material_name})')
-    shading_modality_key = 'slot'
-    adjust_render_settings(context)
-    if 'liquifeel' not in obj__.keys():
-        obj__['liquifeel'] = {}
-    # CLEAN THE SLATE
-    clear_previous_material(shading_modality_key, obj__)
-    # OBJECT TAGGING
-    obj__['liquifeel']['slot_shading'] = {
-        'library': library_key,
-        'material_name': material_name
-    }
-    # PATTERN PREREQUISITES:
-    # solids (so far only UberGlass) have patterns and the pattern is dependent on discrimination between
-    # the interior and the exterior of the glass.
-    if library_key == 'solids':
-        assign_select_outer_geonode_mod(obj__)
-    # ASSIGN THE NEW MATERIAL
-    if library_key == 'scene':
-        material = bpy.data.materials[material_name]
-        set_asset_material(obj__, material, shading_modality_key)
-        # set_asset_material(obj__, material, shading_modality_key=shading_modality_key)
-        # assign_material(obj__, material)
-    else:
-        material = get_material(library_key, material_name)
-        # material = get_material(library_key, material_name).copy()
-        set_asset_material(obj__, material, shading_modality_key)
-        # set_asset_material(obj__, material, shading_modality_key=shading_modality_key)
-        # assign_material(obj__, material)
-        maybe_install_material_auxiliary_modifiers(obj__, library_key, material_name, shading_modality_key)
-        # ASSIGN RECIPIENT PATTERN (somewhere within this block) !!!
-        if library_key == 'solids' and 'Uber Glass' in material_name:
-            prop_key_chain = ['liquifeel_input_field_props', shading_modality_key, 'manual']
-            img_key = getattr_rec(
-                material, prop_key_chain + ['pattern_texture'])
-            # img_key = getattr_rec__by_names(
-            #     material, shading_modality_key, library_key, material_name, 'Shader Node',
-            #     'PatternImage_UV; PatternImage_Box',
-            #     'Pattern Texture')
-            res_key = getattr_rec(
-                material, prop_key_chain + ['pattern_texture_resolution'])
-            # res_key = getattr_rec__by_names(
-            #     material, shading_modality_key, library_key, material_name, 'Shader Node',
-            #     'PatternImage_UV; PatternImage_Box',
-            #     'Pattern Texture Resolution')
-            # print('-- pattern', 'img_key:', img_key, 'res_key:', res_key)
-            node_names = 'PatternImage_UV; PatternImage_Box'
-            nodes = [get_material_node(material, node_name.strip()) for node_name in node_names.split(';')]
-            # print(f"img_tex_fpath = FPATHS['recipient_patterns'][{img_key}][{res_key}]")
-            img_tex_fpath = FPATHS['recipient_patterns'][img_key][res_key]
-            img = maybe_load_image(img_tex_fpath)
-            assign_image_to_nodes(obj__, nodes, img, img_tex_fpath)
-        # SET DEFAULT VALUES TO THE TARGET INPUTS (the intermediate
-        # properties have them already set)
-        assign_default_values_to_target_inputs(
-            obj__, material, shading_modality_key, library_key, material_name)
 
 @undo_push(4)
 def hrdc_slot_shade(context, obj__, library_key, material_name):
@@ -14511,48 +14344,9 @@ def draw_legacy_asset_configuration_message(context, root_layout):
         text='Reset LiquiFeel on This Object',
         icon='FILE_REFRESH')
 
-def draw_drop_dwn__by_redux_data(
-        root_layout, text,
-        prop_root, prop_key_chain):
-    # print()
-    # print(f'''draw_drop_dwn__by_redux_data(
-    #     root_layout, {text},
-    #     {prop_root}, {prop_key_chain}):''')
-    # print()
-    row = root_layout.row()
-    split_row = row.split(
-        factor=LEFT_JUSTIFIED_BUTTON_SPLIT_FACTOR)
-    split_row.label(text=text)
-    split_row.prop(
-        *ref_ob_key_pair(
-            prop_root, prop_key_chain),
-        text='')
 
 # obsolete, shall be removed in the future. we have a new system (execd).
-def draw_drop_down__extgen(
-        root_layout, text,
-        obj__, shading_modality_key, library_key, mat_name, target_type, group_name, input_name,
-        prop_key=None):
-    row = root_layout.row()
-    split_row = row.split(
-        factor=LEFT_JUSTIFIED_BUTTON_SPLIT_FACTOR)
-    split_row.label(text=text)
-    split_row.prop(
-        *ref_input_field_property(
-            obj__, shading_modality_key, library_key, mat_name, target_type, group_name, input_name,
-            prop_key=prop_key),
-        text='')
 
-def draw_drop_down__execd(
-        root_layout, text, top_level_prop_parent, prop_key_chain):
-    row = root_layout.row()
-    split_row = row.split(
-        factor=LEFT_JUSTIFIED_BUTTON_SPLIT_FACTOR)
-    split_row.label(text=text)
-    split_row.prop(
-        *ref_ob_key_pair(
-            top_level_prop_parent, prop_key_chain),
-        text='')
 
 def draw_spacing(root_layout):
     spacing_row = root_layout.row()
@@ -14856,83 +14650,12 @@ def _draw_geometry_ui_impl(context, root_layout):
 #         root_layout.label(
 #             text='Please select an object that has one mesh island!')
 
-def draw_imgtex_input(
-        root_layout, top_level_prop_parent, redux_input_data, prop_key_chain):
-    prop_parent_key_chain = prop_key_chain[:-1]
-    # The variables extracted below are most probably these:
-    # ['pattern_texture', 'pattern_texture_resolution', 'pattern_library', 'user_pattern_texture']
-    img_prop_key, res_prop_key, lib_prop_key, user_img_prop_key = redux_input_data['prop_key']
-    lib_key = getattr_rec(
-        top_level_prop_parent, prop_parent_key_chain + [lib_prop_key])
-    draw_drop_dwn__by_redux_data(
-        root_layout, 'Library', top_level_prop_parent, prop_parent_key_chain + [lib_prop_key])
-    pattern_selector_prop_key = user_img_prop_key if lib_key == 'user_defined' else img_prop_key
-    # We draw the template icon view only if we are outside of the
-    # case in which user defined pattern mode is selected and none are
-    # present.
-    # if not(lib_key == 'user_defined' and not(are_user_defined_patterns_present())):
-    if not(lib_key == 'user_defined' and not(are_user_defined_maps_present('roughness'))):
-        root_layout.template_icon_view(
-            *ref_ob_key_pair(
-                top_level_prop_parent, prop_parent_key_chain + [pattern_selector_prop_key]),
-            show_labels=True, scale=UI_THUMB_SCALE, scale_popup=POPUP_THUMB_SCALE)
-    # Then we decide if we display the resoluton selector or not. If
-    # we are in user defined mode, we don't need it.
-    if not(lib_key == 'user_defined'):
-        root_layout.prop(
-            *ref_ob_key_pair(
-                top_level_prop_parent, prop_parent_key_chain + [res_prop_key]))
-    # If we are in user defined mode, we need to be able to load new
-    # patterns though. hence the operator provided below.
-    else:
-        root_layout.operator('liquifeel.load_user_defined_pattern', text='Load custom pattern image')
 
-def draw_input__extgen(
-        shading_modality_key,
-        obj__, library_key, mat_name, target_type, group_name, input_name, input_data, root_layout):
-    if input_data['underlying_input_type'] == 'imgtex':
-        draw_imgtex_input(
-            shading_modality_key,
-            obj__,
-            library_key, mat_name, target_type, group_name, input_name, input_data,
-            root_layout)
-    elif 'ui_to_underlying_val_mapping' in input_data.keys(): # aka if the underlying prop is of EnumProperty type.
-        draw_drop_down__extgen(
-            root_layout, input_name,
-            obj__, shading_modality_key, library_key, mat_name, target_type, group_name, input_name)
-    else:
-        slider = input_data['underlying_input_type'] == 'float'
-        root_layout.prop(
-            *ref_input_field_property(
-                obj__, shading_modality_key, library_key, mat_name, target_type, group_name, input_name),
-            slider=False)
         # root_layout.prop(
         #     *ref_input_field_property(
         #         obj__, shading_modality_key, library_key, mat_name, target_type, group_name, input_name),
         #     slider=slider)
 
-def get_prop_key_chain(
-        redux_input_data, target_attachment_key, main_tab_key,
-        declaration_modality_key, shading_modality_key):
-    # The two property hierarchies (material attached and object
-    # attached) do not have the same structure. In obtaining the
-    # property hierarchy key chain (path) i'm taking advantaage of
-    # their sole difference. This is a brittle piece of code, if we
-    # changed the hierarchy structure, it would cease to work.
-    prop_key = redux_input_data['prop_key']
-    if target_attachment_key == 'material_attached':
-        return [
-            'liquifeel_input_field_props',
-            shading_modality_key, declaration_modality_key, prop_key]
-    elif target_attachment_key == 'object_attached':
-        if main_tab_key == 'geometry':
-            return [
-                'liquifeel_input_field_props',
-                main_tab_key, declaration_modality_key, prop_key]
-        elif main_tab_key == 'shading':
-            return [
-                'liquifeel_input_field_props',
-                main_tab_key, shading_modality_key, declaration_modality_key, prop_key]
 
 # def get_prop_key_chain(
 #         redux_input_data, target_attachment_key, main_tab_key,
@@ -14952,92 +14675,14 @@ def get_prop_key_chain(
 #         redux_input_data['prop_key']]
 #     return prop_key_chain
 
-def get_prop_key_chain__from_dep_data(dep_data, main_tab_key, shading_modality_key):
-    target_attachment_key = get_target_attachment_key[dep_data['target_type']]
-    ui_input_name = dep_data['input_name']
-    redux_input_data = REDUX_INPUT_DATA[
-        main_tab_key][target_attachment_key][ui_input_name]
-    declaration_modality_key = get_declaration_modality_key(redux_input_data)
-    prop_key_chain = get_prop_key_chain(
-        redux_input_data, target_attachment_key, main_tab_key,
-        declaration_modality_key, shading_modality_key)
-    return prop_key_chain
 
-def draw_input__execd(
-        root_layout, top_level_prop_parent, redux_input_data, field_input_data, prop_key_chain):
-    if redux_input_data['underlying_input_type'] == 'imgtex':
-        draw_imgtex_input(
-            root_layout, top_level_prop_parent, redux_input_data, prop_key_chain)
-    elif 'ui_to_underlying_val_mapping' in input_data.keys(): # aka if the underlying prop is of EnumProperty type.
-        draw_drop_down__execd(
-            root_layout, redux_input_data['ui_input_name'],
-            top_level_prop_parent, prop_key_chain)
-    else:
-        slider = redux_input_data['underlying_input_type'] == 'float'
-        root_layout.prop(
-            *ref_ob_key_pair(
-                top_level_prop_parent, prop_key_chain),
-            slider=False)
         # root_layout.prop(
         #     *ref_ob_key_pair(
         #         top_level_prop_parent, prop_key_chain),
         #     slider=slider)
 
-def satisfies_simple_draw_dependency(
-        obj__, material, prop_key_chain, dep_data, main_tab_key,
-        shading_modality_key=None):
-    dep_target_attachment_key = get_target_attachment_key[dep_data['target_type']]
-    if dep_target_attachment_key == 'object_attached':
-        dep_top_level_prop_parent = obj__
-    else: # dep_target_attachment_key == 'material_attached':
-        dep_top_level_prop_parent = material
-    dep_prop_key_chain = get_prop_key_chain__from_dep_data(
-        dep_data, main_tab_key, shading_modality_key)
-    dep_val = getattr_rec(dep_top_level_prop_parent, dep_prop_key_chain)
-    if 'eqv' in dep_data.keys():
-        dep_val = dep_val == dep_data['eqv']
-    return dep_val
 
-def satisfies_draw_dependency(
-        obj__, material, prop_key_chain, dep_data,
-        main_tab_key,
-        shading_modality_key=None):
-    if isinstance(dep_data, list):
-        dep_vals = list(
-            map(
-                lambda dep_data__: satisfies_simple_draw_dependency(
-                    obj__, material, prop_key_chain, dep_data__,
-                    main_tab_key,
-                    shading_modality_key=shading_modality_key),
-                dep_data))
-        return all(dep_vals)
-    else:
-        dep_val = satisfies_simple_draw_dependency(
-            obj__, material, prop_key_chain, dep_data,
-            main_tab_key,
-            shading_modality_key=shading_modality_key)
-        return dep_val
 
-def maybe_draw_input(
-        root_layout, obj__, redux_input_data, field_input_data, prop_key_chain,
-        main_tab_key, target_attachment_key, shading_modality_key=None):
-    material = get_asset_material(obj__, shading_modality_key=shading_modality_key)
-    if target_attachment_key == 'material_attached':
-        top_level_prop_parent = material
-    else:
-        top_level_prop_parent = obj__
-    if 'dependency' in field_input_data.keys():
-        dep_data = field_input_data['dependency']
-        dep_val = satisfies_draw_dependency(
-            obj__, material, prop_key_chain, dep_data,
-            main_tab_key,
-            shading_modality_key=shading_modality_key)
-        if dep_val:
-            draw_input__execd(
-                root_layout, top_level_prop_parent, redux_input_data, field_input_data, prop_key_chain)
-    else:
-        draw_input__execd(
-            root_layout, top_level_prop_parent, redux_input_data, field_input_data, prop_key_chain)
 
 pattern_ui_input_order = [
     'Pattern',
@@ -15061,57 +14706,8 @@ def pattern_ui_input_order_sorting_metric(extended_input_data):
     else:
         return outside_pattern_ui_input_order
 
-def draw_shader_controls(shading_modality_key, obj__, library_key, mat_name, root_layout):
-    main_tab_key = 'shading'
-    for sorting_tag, inputs_data in SHADING_INPUT_FIELD_DATA_BY_SORTING_TAG[
-            library_key][mat_name].items():
-        box = root_layout.box()
-        box.label(text=sorting_tag)
-        if sorting_tag == 'pattern':
-            inputs_data = sorted(inputs_data, key=pattern_ui_input_order_sorting_metric)
-        for extended_input_data in inputs_data:
-            field_input_data = extended_input_data['input_data']
-            target_attachment_key = get_target_attachment_key[
-                extended_input_data['target_type']]
-            ui_input_name = extended_input_data['input_key']
-            redux_input_data = REDUX_INPUT_DATA[
-                main_tab_key][target_attachment_key][ui_input_name]
-            declaration_modality_key = get_declaration_modality_key(redux_input_data)
-            prop_key_chain = get_prop_key_chain(
-                redux_input_data, target_attachment_key, main_tab_key,
-                declaration_modality_key, shading_modality_key)
-            maybe_draw_input(
-                box, obj__, redux_input_data, field_input_data, prop_key_chain,
-                main_tab_key, target_attachment_key, shading_modality_key=shading_modality_key)
 
-def draw_material_link_controls(obj__, context, root_layout, shading_modality_key):
-    row = root_layout.row()
-    # We need to get the material and count the number of users to
-    # display on the make single user button label.
-    material = get_asset_material(obj__, shading_modality_key=shading_modality_key)
-    split_row = row.split(
-        factor=LEFT_JUSTIFIED_BUTTON_SPLIT_FACTOR)
-    # # This is not currently a priority...
-    # split_row.operator(
-    #     f'liquifeel.link_{shading_modality_key}_materials_from_active',
-    #     text='Link from Active')
-    split_row.label(text='Make single user') # Will probably need to be taken out.
-    split_row.operator(
-        f'liquifeel.make_{shading_modality_key}_material_single_user',
-        text=str(material.users))
 
-def draw_library_selector(obj__, context, root_layout, shading_modality_key):
-    row = root_layout.row()
-    split = row.split(factor=LEFT_JUSTIFIED_BUTTON_SPLIT_FACTOR)
-    split.label(text='Shader Library')
-    prop_key_chain = [
-        'liquifeel_input_field_props',
-        'shading', shading_modality_key, 'manual', 'material_selector', 'library']
-    # prop_key_chain = [
-    #     'liquifeel_input_field_props', 'shading', 'manual',
-    #     f'{shading_modality_key}_material_selector', 'library']
-    prop_parent, prop_key = ref_ob_key_pair(obj__, prop_key_chain)
-    split.prop(prop_parent, prop_key, text='')
 
 def hrdc_draw_library_selector(obj__, context, root_layout, shading_modality_key):
     row = root_layout.row()
@@ -15125,18 +14721,6 @@ def hrdc_draw_library_selector(obj__, context, root_layout, shading_modality_key
     prop_parent, prop_key = ref_ob_key_pair(obj__, prop_key_chain)
     split.prop(prop_parent, prop_key, text='')
 
-def draw_hide_controls(obj__, root_layout):
-    prop_parent = obj__.liquifeel_input_field_props.geometry.manual
-    hide_recipient_row = root_layout.row()
-    hide_recipient_row.enabled = not(
-        getattr(prop_parent, 'hide_liquid'))
-    hide_liquid_row = root_layout.row()
-    hide_liquid_row.enabled = not(
-        getattr(prop_parent, 'hide_recipient'))
-    hide_recipient_row.prop(
-        prop_parent, 'hide_recipient')
-    hide_liquid_row.prop(
-        prop_parent, 'hide_liquid')
 
 def hrdc_draw_hide_controls(obj__, root_layout):
     prop_parent = obj__.hrdc_liquifeel_input_field_props.geometry
@@ -15152,31 +14736,6 @@ def hrdc_draw_hide_controls(obj__, root_layout):
         prop_parent, 'hide_liquid')
     root_layout.prop(prop_parent, 'separate_objects')
 
-def draw_scene_shading_ui(obj__, shading_modality_key, context, root_layout):
-    draw_library_selector(obj__, context, root_layout, shading_modality_key)
-    row = root_layout.row()
-    split_row = row.split(
-        factor=LEFT_JUSTIFIED_BUTTON_SPLIT_FACTOR)
-    split_row.label(text='Scene materials:')
-    prop_key_chain = [
-        'liquifeel_input_field_props', 'shading', shading_modality_key,
-        'manual', 'material_selector', 'scene_material']
-    # prop_key_chain = [
-    #     'liquifeel_input_field_props', 'shading', 'manual',
-    #     f'{shading_modality_key}_material_selector', 'scene_material']
-    prop_parent, prop_key = ref_ob_key_pair(
-        obj__, prop_key_chain)
-    # prop_parent, prop_key = ref_ob_key_pair(obj__,
-    #                                         [
-    #                                             'liquifeel_field_inputs',
-    #                                             f'{shading_modality_key}_shading',
-    #                                             f'scene_material'])
-    split_row.prop(
-        prop_parent, prop_key, text='')
-    if is_obj_filled(obj__):
-        draw_hide_controls(obj__, root_layout)
-        root_layout.prop(
-            obj__.liquifeel_input_field_props.geometry.synthetic, 'liquid_amount')
 
 def hrdc_draw_scene_shading_ui(obj__, shading_modality_key, context, root_layout):
     hrdc_draw_library_selector(obj__, context, root_layout, shading_modality_key)
@@ -15200,65 +14759,6 @@ def hrdc_draw_scene_shading_ui(obj__, shading_modality_key, context, root_layout
         # root_layout.prop(
         #     obj__.liquifeel_input_field_props.geometry.synthetic, 'liquid_amount')
 
-def draw_shading_ui__(shading_modality_key, context, root_layout):
-    obj__ = context.active_object
-    library_key, mat_name = get_library_key_and_material_name(
-        obj__, shading_modality_key=shading_modality_key)
-    # library_key = getattr_rec(obj__,
-    #                           [
-    #                               'liquifeel_field_inputs',
-    #                               f'{shading_modality_key}_shading',
-    #                               'library'])
-    # if is_obj_library_shaded(obj__, library_key, shading_modality_key):
-    if is_obj_liquifeel_asset(obj__) and is_obj_library_shaded(
-            obj__, library_key, shading_modality_key):
-        obj__ = context.active_object
-        # if shading_modality_key == 'fill': # So far, we do want to implement this for slot too though.
-        draw_material_link_controls(obj__, context, root_layout, shading_modality_key)
-        draw_library_selector(obj__, context, root_layout, shading_modality_key)
-        material_picker_box = root_layout.box()
-        prop_key_chain = [
-            'liquifeel_input_field_props',
-            'shading', shading_modality_key, 'manual', 'material_selector', f'{library_key}_material']
-        # prop_key_chain = [
-        #     'liquifeel_input_field_props', 'shading', 'manual',
-        #     f'{shading_modality_key}_material_selector', f'{library_key}_material']
-        prop_parent, prop_key = ref_ob_key_pair(
-            obj__, prop_key_chain)
-        material_picker_box.template_icon_view(
-            prop_parent, prop_key,
-            # *ref_ob_key_pair(obj__,
-            #                  [
-            #                      'liquifeel_field_inputs',
-            #                      f'{shading_modality_key}_shading',
-            #                      f'library_{library_key}_material']),
-            show_labels=True, scale=UI_THUMB_SCALE, scale_popup=POPUP_THUMB_SCALE)
-        # mat_name = getattr_rec(obj__,
-        #                        [
-        #                            'liquifeel_field_inputs',
-        #                            f'{shading_modality_key}_shading',
-        #                            f'library_{library_key}_material'])
-        material_picker_box.label(
-            text=mat_name)
-        root_layout.operator(
-            f'liquifeel.update_render_view',
-            text='Update Render View',
-        )
-        if is_obj_filled(obj__):
-            draw_hide_controls(obj__, root_layout)
-            root_layout.prop(obj__.liquifeel_input_field_props.geometry.synthetic, 'liquid_amount')
-        draw_shader_controls(shading_modality_key, obj__, library_key, mat_name, root_layout)
-    elif library_key == 'scene':
-        draw_scene_shading_ui(obj__, shading_modality_key, context, root_layout)
-    else:
-        draw_library_selector(obj__, context, root_layout, shading_modality_key)
-        shade_it_row = root_layout.row()
-        shade_it_row.scale_y = LRG_H
-        shade_it_row.operator(
-            f'liquifeel.shade_active_object_via_{shading_modality_key}',
-            text='Shade active',
-            icon=MAIN_TAB_BUILTIN_ICONS['shading'],
-        )
     # draw_spacing(root_layout)
 
 def draw_shader_ng_prop(mat__, ng_name, input_name, root_layout):
@@ -16534,8 +16034,6 @@ def hrdc_draw_shading_ui__(shading_modality_key, context, root_layout):  # !!! T
     draw_high_level_render_controls(obj__, context, root_layout, shading_modality_key)
     # draw_spacing(root_layout)
 
-def draw_slot_shading_ui(context, root_layout):
-    draw_shading_ui__('slot', context, root_layout)
 
 def hrdc_draw_slot_shading_ui(context, root_layout):
     hrdc_draw_shading_ui__('slot', context, root_layout)
@@ -16548,20 +16046,10 @@ def draw_shading_target_selector(obj__, context, root_layout):
         general_ctrl__, 'shading_target', expand=True)
     draw_spacing(root_layout)
 
-def draw_fill_liquid_shading_ui(context, root_layout):
-    draw_shading_ui__('fill', context, root_layout)    
 
 def hrdc_draw_fill_liquid_shading_ui(context, root_layout):
     hrdc_draw_shading_ui__('fill', context, root_layout)    
 
-def draw_fill_shading_ui(context, root_layout):
-    obj__ = context.active_object
-    draw_shading_target_selector(obj__, context, root_layout) # recipient or liquid
-    general_ctrl__ = context.scene.liquifeel_general_controls
-    if getattr(general_ctrl__, 'shading_target') == 'recipient':
-        draw_slot_shading_ui(context, root_layout)
-    elif getattr(general_ctrl__, 'shading_target') == 'liquid':
-        draw_fill_liquid_shading_ui(context, root_layout)
     # draw_spacing(root_layout)
 
 def hrdc_draw_fill_shading_ui(context, root_layout):
@@ -16574,16 +16062,6 @@ def hrdc_draw_fill_shading_ui(context, root_layout):
         hrdc_draw_fill_liquid_shading_ui(context, root_layout)
     # draw_spacing(root_layout)
 
-def draw_shading_ui(context, root_layout):
-    if is_active_selected_ob(context):
-        obj__ = context.active_object
-        if is_obj_filled(obj__):
-            draw_fill_shading_ui(context, root_layout)
-        else:
-            draw_slot_shading_ui(context, root_layout)
-    else:
-        root_layout.label(
-            text='Please select an object to shade.')
         # draw_spacing(root_layout)
 
 def hrdc_draw_shading_ui(context, root_layout):
