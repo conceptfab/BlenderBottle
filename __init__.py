@@ -424,11 +424,6 @@ def undo_push(n):
             return wrapper
         return decorator
 
-# def undo_push(f):
-#     def wrapper(instance, context):
-#         bpy.ops.ed.undo_push()
-#         return f(instance, context)
-#     return wrapper
 
 @undo_push(1)
 def unused_data_purge(context):
@@ -821,43 +816,9 @@ recipient_asset_namess = [
     ('Vellum Whiskey Bottle', 'Vellum Whiskey Bottle'),
 ]
 # # : [(THUMBNAIL_NAME, OBJECT_NAME)]
-# recipient_asset_namess = [
-#     ('American Pint Glass', 'American_Pint_Glass'),
-#     ('Bordeaux Wine Glass', 'Bordeaux Wine Glass'),
-#     ('Beer Bottle 22oz', 'Bomber 22oz Bottle'),
-#     ('Beer Mug', 'Beer_Mug'),
-#     ('Bowl_2in', 'Bowl_2in'),
-#     ('Bowl_6.5in', 'Bowl_6in'),
-#     ('Bowl_7.5in', 'Bowl_7.5in'),
-#     ('Bowl_9in', 'Bowl_9in'),
-#     ('Champagne Bottle', 'Champagne 750mL'),
-#     ('Hurricane Glass', 'Hurricane Glass'),
-#     ('Ikea Carafe', 'Ikea 365+ Carafe'),
-#     ('Pitcher', 'Pitcher'),
-#     ('Soda Bottle 16.9oz', 'Soda Bottle'),
-#     ('Whiskey Glass', 'Whiskey Glass'),
-#     ('Liquifeel Carafe', 'LiquifeelCarafe'),
-# ]
 
 # # manual rename operation data
 # # : [(THUMBNAIL_NAME, PREVIEW_NAME)]
-# preview_recipient_asset_names = {
-#     'American Pint Glass': None,
-#     'Bordeaux Wine Glass': None,
-#     'Beer Bottle 22oz': None,
-#     'Beer Mug': None,
-#     'Bowl_2in': 'Large Bowl',
-#     'Bowl_6.5in': 'Bowl 6.5in',
-#     'Bowl_7.5in': 'Bowl 7.5in',
-#     'Bowl_9in': 'Bowl 9in',
-#     'Champagne Bottle': None,
-#     'Hurricane Glass': None,
-#     'Ikea Carafe': None,
-#     'Pitcher': None,
-#     'Soda Bottle 16.9oz': None,
-#     'Whiskey Glass': None,
-#     'Liquifeel Carafe': None,
-# }
 
 with open(str(FPATHS['recipient_asset_parenting_data']), 'r') as f:
     RECIPIENT_ASSET_PARENTING_DATA = json.load(f)
@@ -943,21 +904,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                                     'key': 'Opening '
                                                     'Shape',
                                                     'key_type': 'input_name'},
-                                                # {
-                                                #     'data': {
-                                                #         'underlying_input_default_val': 1.0,
-                                                #         'dependency': {
-                                                #             'group_name': FILL_NG_NAME,
-                                                #             'input_name': 'Opening Shape',
-                                                #             'target_type': 'Fill'},
-                                                #         'underlying_input_name': 'Lip Threshold',
-                                                #         'key': 'lip_threshold',
-                                                #         'linked_update_index': 0.0,
-                                                #         'ui_category_key': 'fill',
-                                                #         'underlying_input_type': 'float',
-                                                #         'update_f': 'lip_threshold_update'},
-                                                #     'key': 'Lip Threshold',
-                                                #     'key_type': 'input_name'},
                                                 {
                                                     'data': {
                                                         'underlying_input_default_val': False,
@@ -1512,15 +1458,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                                         'underlying_input_type': 'float'},
                                                     'key': 'Bubbles Scale',
                                                     'key_type': 'input_name'},
-                                                # {
-                                                #     'data': {
-                                                #         'underlying_input_default_val': 1.0,
-                                                #         'underlying_input_name': 'Bubbles',
-                                                #         'key': 'bubbles',
-                                                #         'ui_category_key': 'Foam',
-                                                #         'underlying_input_type': 'float'},
-                                                #     'key': 'Bubbles',
-                                                #     'key_type': 'input_name'},
                                                 {
                                                     'data': {
                                                         'underlying_input_default_val': 1.0,
@@ -1677,15 +1614,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                                         'underlying_input_type': 'float'},
                                                     'key': 'Bubbles Scale',
                                                     'key_type': 'input_name'},
-                                                # {
-                                                #     'data': {
-                                                #         'underlying_input_default_val': 1.0,
-                                                #         'underlying_input_name': 'Bubbles',
-                                                #         'key': 'bubbles',
-                                                #         'ui_category_key': 'Foam',
-                                                #         'underlying_input_type': 'float'},
-                                                #     'key': 'Bubbles',
-                                                #     'key_type': 'input_name'},
                                                 {
                                                     'data': {
                                                         'underlying_input_default_val': 0.5,
@@ -1875,15 +1803,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                                         'underlying_input_type': 'float'},
                                                     'key': 'Bubbles Scale',
                                                     'key_type': 'input_name'},
-                                                # {
-                                                #     'data': {
-                                                #         'underlying_input_default_val': 1.0,
-                                                #         'underlying_input_name': 'Bubbles',
-                                                #         'key': 'bubbles',
-                                                #         'ui_category_key': 'Foam',
-                                                #         'underlying_input_type': 'float'},
-                                                #     'key': 'Bubbles',
-                                                #     'key_type': 'input_name'},
                                                 {
                                                     'data': {
                                                         'underlying_input_default_val': 0.5,
@@ -2060,128 +1979,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                 'Liquid Color']},
                         'key': 'Cappuccino',
                         'key_type': 'material/func_name'},
-                    # {
-                    #     'data': {
-                    #         'data': [
-                    #             {
-                    #                 'data': [
-                    #                     {
-                    #                         'data': [
-                    #                             {
-                    #                                 'data': {
-                    #                                     'underlying_input_default_val': [
-                    #                                         0.440597,
-                    #                                         0.300089,
-                    #                                         0.140131],
-                    #                                     'underlying_input_name': 'Liquid Color',
-                    #                                     'key': 'liquid_color',
-                    #                                     'ui_category_key': 'Liquid',
-                    #                                     'underlying_input_type': 'color'},
-                    #                                 'key': 'Liquid Color',
-                    #                                 'key_type': 'input_name'}],
-                    #                         'key': 'Cappuccino',
-                    #                         'key_type': 'group_name'}],
-                    #                 'key': 'Shader NG',
-                    #                 'key_type': 'target_type'},
-                    #             {
-                    #                 'data': [
-                    #                     {
-                    #                         'data': [
-                    #                             {
-                    #                                 'data': {
-                    #                                     'underlying_input_default_val': 0.025,
-                    #                                     'dependency': {
-                    #                                         'group_name': 'Cappuccino Utils',
-                    #                                         'input_name': 'Foam',
-                    #                                         'target_type': 'GeoNode'},
-                    #                                     'underlying_input_name': 'Foam Amount',
-                    #                                     'key': 'foam_amount',
-                    #                                     'ui_category_key': 'Foam',
-                    #                                     'subtype': 'percentage',
-                    #                                     'underlying_input_type': 'float'},
-                    #                                 'key': 'Foam Amount',
-                    #                                 'key_type': 'input_name'}],
-                    #                         'key': 'Foam Utils',
-                    #                         'key_type': 'group_name'},
-                    #                     {
-                    #                         'data': [
-                    #                             # # " Ideea cu cappuccino e ca nu are sens sa fie fara spuma, that's the point of it :)) " -- Alex
-                    #                             # {
-                    #                             #     'data': {
-                    #                             #         'underlying_input_default_val': True,
-                    #                             #         'underlying_input_name': 'Foam',
-                    #                             #         'key': 'foam',
-                    #                             #         'ui_category_key': 'Foam',
-                    #                             #         'underlying_input_type': 'bool'},
-                    #                             #     'key': 'Foam',
-                    #                             #     'key_type': 'input_name'},
-                    #                             {
-                    #                                 'data': {
-                    #                                     'underlying_input_default_val': 850.0,
-                    #                                     # 'dependency': {
-                    #                                     #     'group_name': 'Cappuccino Utils',
-                    #                                     #     'input_name': 'Foam',
-                    #                                     #     'target_type': 'GeoNode'},
-                    #                                     'underlying_input_name': 'Bubbles Scale',
-                    #                                     'key': 'bubbles_scale',
-                    #                                     'ui_category_key': 'Foam',
-                    #                                     'underlying_input_type': 'float'},
-                    #                                 'key': 'Bubbles Scale',
-                    #                                 'key_type': 'input_name'},
-                    #                             {
-                    #                                 'data': {
-                    #                                     'underlying_input_default_val': 1.0,
-                    #                                     # 'dependency': {
-                    #                                     #     'group_name': 'Cappuccino Utils',
-                    #                                     #     'input_name': 'Foam',
-                    #                                     #     'target_type': 'GeoNode'},
-                    #                                     'underlying_input_name': 'Bubbles',
-                    #                                     'key': 'bubbles',
-                    #                                     'ui_category_key': 'Foam',
-                    #                                     'underlying_input_type': 'float'},
-                    #                                 'key': 'Bubbles',
-                    #                                 'key_type': 'input_name'},
-                    #                             {
-                    #                                 'data': {
-                    #                                     'underlying_input_default_val': 1.0,
-                    #                                     # 'dependency': {
-                    #                                     #     'group_name': 'Cappuccino Utils',
-                    #                                     #     'input_name': 'Foam',
-                    #                                     #     'target_type': 'GeoNode'},
-                    #                                     'underlying_input_name': 'Normal Strength',
-                    #                                     'key': 'normal_strength',
-                    #                                     'ui_category_key': 'Foam',
-                    #                                     'underlying_input_type': 'float'},
-                    #                                 'key': 'Normal Strength',
-                    #                                 'key_type': 'input_name'},
-                    #                             {
-                    #                                 'data': {
-                    #                                     'underlying_input_default_val': 0,
-                    #                                     # 'dependency': {
-                    #                                     #     'group_name': 'Cappuccino Utils',
-                    #                                     #     'input_name': 'Foam',
-                    #                                     #     'target_type': 'GeoNode'},
-                    #                                     'underlying_input_name': 'Seed',
-                    #                                     'key': 'seed',
-                    #                                     'ui_category_key': 'Foam',
-                    #                                     'underlying_input_type': 'int'},
-                    #                                 'key': 'Seed',
-                    #                                 'key_type': 'input_name'}],
-                    #                         'key': 'Cappuccino Utils',
-                    #                         'key_type': 'group_name'}],
-                    #                 'key': 'GeoNode',
-                    #                 'key_type': 'target_type'}],
-                    #         'input_order': [
-                    #             # 'Foam',
-                    #             'Foam Amount',
-                    #             'Liquid Color',
-                    #             'Bubbles Scale',
-                    #             'Bubbles',
-                    #             'Normal Strength',
-                    #             'Seed']},
-                    #     'key': 'Cappuccino',
-                    #     'key_type': 'material/func_name'}
-                    # ,
                     {
                         'data': {
                             'data': [
@@ -2294,15 +2091,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                                         'underlying_input_type': 'float'},
                                                     'key': 'Bubbles Scale',
                                                     'key_type': 'input_name'},
-                                                # {
-                                                #     'data': {
-                                                #         'underlying_input_default_val': 1.0,
-                                                #         'underlying_input_name': 'Bubbles',
-                                                #         'key': 'bubbles',
-                                                #         'ui_category_key': 'Foam',
-                                                #         'underlying_input_type': 'float'},
-                                                #     'key': 'Bubbles',
-                                                #     'key_type': 'input_name'},
                                                 {
                                                     'data': {
                                                         'underlying_input_default_val': 1.0,
@@ -2420,15 +2208,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                                         'underlying_input_type': 'float'},
                                                     'key': 'Bubbles Scale',
                                                     'key_type': 'input_name'},
-                                                # {
-                                                #     'data': {
-                                                #         'underlying_input_default_val': 1.0,
-                                                #         'underlying_input_name': 'Bubbles',
-                                                #         'key': 'bubbles',
-                                                #         'ui_category_key': 'Foam',
-                                                #         'underlying_input_type': 'float'},
-                                                #     'key': 'Bubbles',
-                                                #     'key_type': 'input_name'},
                                                 {
                                                     'data': {
                                                         'underlying_input_default_val': 0.3,
@@ -2543,15 +2322,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                                         'underlying_input_type': 'float'},
                                                     'key': 'Bubbles Scale',
                                                     'key_type': 'input_name'},
-                                                # {
-                                                #     'data': {
-                                                #         'underlying_input_default_val': 1.0,
-                                                #         'underlying_input_name': 'Bubbles',
-                                                #         'key': 'bubbles',
-                                                #         'ui_category_key': 'Foam',
-                                                #         'underlying_input_type': 'float'},
-                                                #     'key': 'Bubbles',
-                                                #     'key_type': 'input_name'},
                                                 {
                                                     'data': {
                                                         'underlying_input_default_val': 1.0,
@@ -2723,15 +2493,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                                         'underlying_input_type': 'float'},
                                                     'key': 'Bubbles Scale',
                                                     'key_type': 'input_name'},
-                                                # {
-                                                #     'data': {
-                                                #         'underlying_input_default_val': 1.0,
-                                                #         'underlying_input_name': 'Bubbles',
-                                                #         'key': 'bubbles',
-                                                #         'ui_category_key': 'Foam',
-                                                #         'underlying_input_type': 'float'},
-                                                #     'key': 'Bubbles',
-                                                #     'key_type': 'input_name'},
                                                 {
                                                     'data': {
                                                         'underlying_input_default_val': 0.5,
@@ -2818,15 +2579,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                                         'underlying_input_type': 'float'},
                                                     'key': 'Bubbles Scale',
                                                     'key_type': 'input_name'},
-                                                # {
-                                                #     'data': {
-                                                #         'underlying_input_default_val': 1.0,
-                                                #         'underlying_input_name': 'Bubbles',
-                                                #         'key': 'bubbles',
-                                                #         'ui_category_key': 'Foam',
-                                                #         'underlying_input_type': 'float'},
-                                                #     'key': 'Bubbles',
-                                                #     'key_type': 'input_name'},
                                                 {
                                                     'data': {
                                                         'underlying_input_default_val': 1.0,
@@ -3039,15 +2791,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                                     'key': 'Bubbles '
                                                     'Scale',
                                                     'key_type': 'input_name'},
-                                                # {
-                                                #     'data': {
-                                                #         'underlying_input_default_val': 1.0,
-                                                #         'underlying_input_name': 'Bubbles',
-                                                #         'key': 'bubbles',
-                                                #         'ui_category_key': 'Foam',
-                                                #         'underlying_input_type': 'float'},
-                                                #     'key': 'Bubbles',
-                                                #     'key_type': 'input_name'},
                                                 {
                                                     'data': {
                                                         'underlying_input_default_val': 1.0,
@@ -3248,15 +2991,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                                         'underlying_input_type': 'float'},
                                                     'key': 'Bubbles Scale',
                                                     'key_type': 'input_name'},
-                                                # {
-                                                #     'data': {
-                                                #         'underlying_input_default_val': 1.0,
-                                                #         'underlying_input_name': 'Bubbles',
-                                                #         'key': 'bubbles',
-                                                #         'ui_category_key': 'Foam',
-                                                #         'underlying_input_type': 'float'},
-                                                #     'key': 'Bubbles',
-                                                #     'key_type': 'input_name'},
                                                 {
                                                     'data': {
                                                         'underlying_input_default_val': 1.0,
@@ -3402,15 +3136,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                                         'underlying_input_type': 'float'},
                                                     'key': 'Bubbles Scale',
                                                     'key_type': 'input_name'},
-                                                # {
-                                                #     'data': {
-                                                #         'underlying_input_default_val': 1.0,
-                                                #         'underlying_input_name': 'Bubbles',
-                                                #         'key': 'bubbles',
-                                                #         'ui_category_key': 'Foam',
-                                                #         'underlying_input_type': 'float'},
-                                                #     'key': 'Bubbles',
-                                                #     'key_type': 'input_name'},
                                                 {
                                                     'data': {
                                                         'underlying_input_default_val': 0.5,
@@ -3611,115 +3336,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                 'Seed']},
                         'key': 'Honey',
                         'key_type': 'material/func_name'},
-                    # {
-                    #     'data': {
-                    #         'data': [
-                    #             {
-                    #                 'data': [
-                    #                     {
-                    #                         'data': [
-                    #                             {
-                    #                                 'data': {
-                    #                                     'underlying_input_default_val': [
-                    #                                         1.0,
-                    #                                         0.904783,
-                    #                                         0.571125],
-                    #                                     'underlying_input_name': 'Color',
-                    #                                     'key': 'color',
-                    #                                     'ui_category_key': 'Liquid',
-                    #                                     'underlying_input_type': 'color'},
-                    #                                 'key': 'Color',
-                    #                                 'key_type': 'input_name'},
-                    #                             {
-                    #                                 'data': {
-                    #                                     'underlying_input_default_val': 70.0,
-                    #                                     'underlying_input_name': 'Intensity',
-                    #                                     'key': 'intensity',
-                    #                                     'ui_category_key': 'Liquid',
-                    #                                     'underlying_input_type': 'float'},
-                    #                                 'key': 'Intensity',
-                    #                                 'key_type': 'input_name'},
-                    #                             {
-                    #                                 'data': {
-                    #                                     'underlying_input_default_val': 0.3,
-                    #                                     'underlying_input_name': 'Turbidity',
-                    #                                     'key': 'turbidity',
-                    #                                     'ui_category_key': 'Liquid',
-                    #                                     'underlying_input_type': 'float'},
-                    #                                 'key': 'Turbidity',
-                    #                                 'key_type': 'input_name'}],
-                    #                         'key': 'Honey',
-                    #                         'key_type': 'group_name'}],
-                    #                 'key': 'Shader NG',
-                    #                 'key_type': 'target_type'},
-                    #             {
-                    #                 'data': [
-                    #                     {
-                    #                         'data': [
-                    #                             {
-                    #                                 'data': {
-                    #                                     'underlying_input_default_val': 0.0,
-                    #                                     'underlying_input_name': 'Crystallization',
-                    #                                     'key': 'crystallization',
-                    #                                     'ui_category_key': 'Liquid',
-                    #                                     'underlying_input_type': 'float'},
-                    #                                 'key': 'Crystallization',
-                    #                                 'key_type': 'input_name'}],
-                    #                         'key': 'Honey Utils',
-                    #                         'key_type': 'group_name'},
-                    #                     {
-                    #                         'data': [
-                    #                             {
-                    #                                 'data': {
-                    #                                     'underlying_input_default_val': True,
-                    #                                     'underlying_input_name': 'Static Bubbles',
-                    #                                     'key': 'static_bubbles',
-                    #                                     'ui_category_key': 'Bubbles',
-                    #                                     'underlying_input_type': 'bool'},
-                    #                                 'key': 'Static Bubbles',
-                    #                                 'key_type': 'input_name'},
-                    #                             {
-                    #                                 'data': {
-                    #                                     'underlying_input_default_val': 10.0,
-                    #                                     'underlying_input_name': 'Density',
-                    #                                     'key': 'density',
-                    #                                     'ui_category_key': 'Bubbles',
-                    #                                     'underlying_input_type': 'float'},
-                    #                                 'key': 'Density',
-                    #                                 'key_type': 'input_name'},
-                    #                             {
-                    #                                 'data': {
-                    #                                     'underlying_input_default_val': 1.0,
-                    #                                     'underlying_input_name': 'Scale',
-                    #                                     'key': 'scale',
-                    #                                     'ui_category_key': 'Bubbles',
-                    #                                     'underlying_input_type': 'float'},
-                    #                                 'key': 'Scale',
-                    #                                 'key_type': 'input_name'},
-                    #                             {
-                    #                                 'data': {
-                    #                                     'underlying_input_default_val': 0,
-                    #                                     'underlying_input_name': 'Seed',
-                    #                                     'key': 'seed',
-                    #                                     'ui_category_key': 'Bubbles',
-                    #                                     'underlying_input_type': 'int'},
-                    #                                 'key': 'Seed',
-                    #                                 'key_type': 'input_name'}],
-                    #                         'key': 'Static Bubbles',
-                    #                         'key_type': 'group_name'}],
-                    #                 'key': 'GeoNode',
-                    #                 'key_type': 'target_type'}],
-                    #         'input_order': [
-                    #             'Color',
-                    #             'Intensity',
-                    #             'Turbidity',
-                    #             'Crystallization',
-                    #             'Static Bubbles',
-                    #             'Density',
-                    #             'Scale',
-                    #             'Seed']},
-                    #     'key': 'Honey',
-                    #     'key_type': 'material/func_name'},
                     {
                         'data': {
                             'data': [
@@ -3866,15 +3482,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                                         'underlying_input_type': 'float'},
                                                     'key': 'Bubbles Scale',
                                                     'key_type': 'input_name'},
-                                                # {
-                                                #     'data': {
-                                                #         'underlying_input_default_val': 1.0,
-                                                #         'underlying_input_name': 'Bubbles',
-                                                #         'key': 'bubbles',
-                                                #         'ui_category_key': 'Foam',
-                                                #         'underlying_input_type': 'float'},
-                                                #     'key': 'Bubbles',
-                                                #     'key_type': 'input_name'},
                                                 {
                                                     'data': {
                                                         'underlying_input_default_val': 0.5,
@@ -4096,15 +3703,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                                         'underlying_input_type': 'float'},
                                                     'key': 'Bubbles Scale',
                                                     'key_type': 'input_name'},
-                                                # {
-                                                #     'data': {
-                                                #         'underlying_input_default_val': 1.0,
-                                                #         'underlying_input_name': 'Bubbles',
-                                                #         'key': 'bubbles',
-                                                #         'ui_category_key': 'Foam',
-                                                #         'underlying_input_type': 'float'},
-                                                #     'key': 'Bubbles',
-                                                #     'key_type': 'input_name'},
                                                 {
                                                     'data': {
                                                         'underlying_input_default_val': 0.3,
@@ -4246,15 +3844,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                                         'underlying_input_type': 'float'},
                                                     'key': 'Bubbles Scale',
                                                     'key_type': 'input_name'},
-                                                # {
-                                                #     'data': {
-                                                #         'underlying_input_default_val': 1.0,
-                                                #         'underlying_input_name': 'Bubbles',
-                                                #         'key': 'bubbles',
-                                                #         'ui_category_key': 'Foam',
-                                                #         'underlying_input_type': 'float'},
-                                                #     'key': 'Bubbles',
-                                                #     'key_type': 'input_name'},
                                                 {
                                                     'data': {
                                                         'underlying_input_default_val': 1.0,
@@ -4542,15 +4131,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                                         'underlying_input_type': 'float'},
                                                     'key': 'Bubbles Scale',
                                                     'key_type': 'input_name'},
-                                                # {
-                                                #     'data': {
-                                                #         'underlying_input_default_val': 1.0,
-                                                #         'underlying_input_name': 'Bubbles',
-                                                #         'key': 'bubbles',
-                                                #         'ui_category_key': 'Foam',
-                                                #         'underlying_input_type': 'float'},
-                                                #     'key': 'Bubbles',
-                                                #     'key_type': 'input_name'},
                                                 {
                                                     'data': {
                                                         'underlying_input_default_val': 0.3,
@@ -4732,15 +4312,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                                         'underlying_input_type': 'float'},
                                                     'key': 'Bubbles Scale',
                                                     'key_type': 'input_name'},
-                                                # {
-                                                #     'data': {
-                                                #         'underlying_input_default_val': 1.0,
-                                                #         'underlying_input_name': 'Bubbles',
-                                                #         'key': 'bubbles',
-                                                #         'ui_category_key': 'Foam',
-                                                #         'underlying_input_type': 'float'},
-                                                #     'key': 'Bubbles',
-                                                #     'key_type': 'input_name'},
                                                 {
                                                     'data': {
                                                         'underlying_input_default_val': 1.0,
@@ -5371,24 +4942,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                                     },
                                                     'key': 'Mapping Type',
                                                     'key_type': 'input_name'}                                                # {
-                                                #     'data': {
-                                                #         'underlying_input_default_val': True,
-                                                #         'dependency': {
-                                                #             'group_name': 'RoughnessUtils',
-                                                #             'input_name': 'Custom Roughness Map',
-                                                #             'target_type': 'GeoNode',
-                                                #         },
-                                                #         'ui_to_underlying_val_mapping': {
-                                                #             'Box': True,
-                                                #             'UV': False
-                                                #         },
-                                                #         'underlying_input_name': 'UV/Box',
-                                                #         'key': 'mapping',
-                                                #         'ui_category_key': 'Roughness Pattern',
-                                                #         'underlying_input_type': 'bool',
-                                                #     },
-                                                #     'key': 'Mapping',
-                                                #     'key_type': 'input_name'}
                                                 ,
                                                 {
                                                     'data': {
@@ -5643,83 +5196,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                                     'key_type': 'input_name'}],
                                             'key': 'GlassUtils',
                                             'key_type': 'group_name'},
-                                    # {
-                                    #         'data': [
-                                    #             {
-                                    #                 'data': {
-                                    #                     'underlying_input_default_val': False,
-                                    #                     'underlying_input_name': 'Condensation',
-                                    #                     'key': 'condensation',
-                                    #                     'ui_category_key': 'Droplets',
-                                    #                     'underlying_input_type': 'bool'},
-                                    #                 'key': 'Condensation',
-                                    #                 'key_type': 'input_name'},
-                                    #             {
-                                    #                 'data': {
-                                    #                     'underlying_input_default_val': 1000,
-                                    #                     'dependency': {
-                                    #                         'group_name': 'Condensation_V1.0',
-                                    #                         'input_name': 'Condensation',
-                                    #                         'target_type': 'GeoNode'},
-                                    #                     'underlying_input_name': 'Density',
-                                    #                     'key': 'density',
-                                    #                     'ui_category_key': 'Droplets',
-                                    #                     'underlying_input_type': 'float'},
-                                    #                 'key': 'Density',
-                                    #                 'key_type': 'input_name'},
-                                    #             {
-                                    #                 'data': {
-                                    #                     'underlying_input_default_val': 0.1,
-                                    #                     'dependency': {
-                                    #                         'group_name': 'Condensation_V1.0',
-                                    #                         'input_name': 'Condensation',
-                                    #                         'target_type': 'GeoNode'},
-                                    #                     'underlying_input_name': 'Scale',
-                                    #                     'key': 'scale',
-                                    #                     'ui_category_key': 'Droplets',
-                                    #                     'underlying_input_type': 'float'},
-                                    #                 'key': 'Scale',
-                                    #                 'key_type': 'input_name'},
-                                    #             {
-                                    #                 'data': {
-                                    #                     'underlying_input_default_val': 'Cold Drink',
-                                    #                     'dependency': {
-                                    #                         'group_name': 'Condensation_V1.0',
-                                    #                         'input_name': 'Condensation',
-                                    #                         'target_type': 'GeoNode'},
-                                    #                     'underlying_input_name': 'Condensation Type',
-                                    #                     'key': 'condensation_type',
-                                    #                     'ui_category_key': 'Droplets',
-                                    #                     'underlying_input_type': 'menu'},
-                                    #                 'key': 'Condensation Type',
-                                    #                 'key_type': 'input_name'},
-                                    #             {
-                                    #                 'data': {
-                                    #                     'underlying_input_default_val': False,
-                                    #                     'dependency': {
-                                    #                         'group_name': 'Condensation_V1.0',
-                                    #                         'input_name': 'Condensation',
-                                    #                         'target_type': 'GeoNode'},
-                                    #                     'underlying_input_name': 'Use Vertex Group',
-                                    #                     'key': 'use_vertex_group',
-                                    #                     'ui_category_key': 'Droplets',
-                                    #                     'underlying_input_type': 'bool'},
-                                    #                 'key': 'Use Vertex Group',
-                                    #                 'key_type': 'input_name'},
-                                    #             {
-                                    #                 'data': {
-                                    #                     'dependency': {
-                                    #                         'group_name': 'Condensation_V1.0',
-                                    #                         'input_name': 'Condensation',
-                                    #                         'target_type': 'GeoNode'},
-                                    #                     'underlying_input_name': 'Vertex Group',
-                                    #                     'key': 'vertex_group',
-                                    #                     'ui_category_key': 'Droplets',
-                                    #                     'underlying_input_type': 'string'},
-                                    #                 'key': 'Vertex Group',
-                                    #                 'key_type': 'input_name'}],
-                                    #         'key': 'Condensation_V1.0',
-                                    #         'key_type': 'group_name'}
                                     ],
                                     'key': 'GeoNode',
                                     'key_type': 'target_type'}],
@@ -5755,12 +5231,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                 'Rim Darkness',
                                 'Dispersion',
                                 'Glass Roughness',
-                                # 'Condensation', # condensation
-                                # 'Density',      # condensation
-                                # 'Scale',        # condensation
-                                # 'Condensation Type', # condensation
-                                # 'Use Vertex Group',  # condensation
-                                # 'Vertex Group',      # condensation
                             ]},
                         'key': 'Uber Glass',
                         'key_type': 'material/func_name'},
@@ -5825,83 +5295,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                     'key_type': 'target_type'},
                                 {
                                     'data': [
-                                        # {
-                                        #     'data': [
-                                        #         {
-                                        #             'data': {
-                                        #                 'underlying_input_default_val': False,
-                                        #                 'underlying_input_name': 'Condensation',
-                                        #                 'key': 'condensation',
-                                        #                 'ui_category_key': 'Droplets',
-                                        #                 'underlying_input_type': 'bool'},
-                                        #             'key': 'Condensation',
-                                        #             'key_type': 'input_name'},
-                                        #         {
-                                        #             'data': {
-                                        #                 'underlying_input_default_val': 1000,
-                                        #                 'dependency': {
-                                        #                     'group_name': 'Condensation_V1.0',
-                                        #                     'input_name': 'Condensation',
-                                        #                     'target_type': 'GeoNode'},
-                                        #                 'underlying_input_name': 'Density',
-                                        #                 'key': 'density',
-                                        #                 'ui_category_key': 'Droplets',
-                                        #                 'underlying_input_type': 'float'},
-                                        #             'key': 'Density',
-                                        #             'key_type': 'input_name'},
-                                        #         {
-                                        #             'data': {
-                                        #                 'underlying_input_default_val': 0.1,
-                                        #                 'dependency': {
-                                        #                     'group_name': 'Condensation_V1.0',
-                                        #                     'input_name': 'Condensation',
-                                        #                     'target_type': 'GeoNode'},
-                                        #                 'underlying_input_name': 'Scale',
-                                        #                 'key': 'scale',
-                                        #                 'ui_category_key': 'Droplets',
-                                        #                 'underlying_input_type': 'float'},
-                                        #             'key': 'Scale',
-                                        #             'key_type': 'input_name'},
-                                        #         {
-                                        #             'data': {
-                                        #                 'underlying_input_default_val': 'Cold Drink',
-                                        #                 'dependency': {
-                                        #                     'group_name': 'Condensation_V1.0',
-                                        #                     'input_name': 'Condensation',
-                                        #                     'target_type': 'GeoNode'},
-                                        #                 'underlying_input_name': 'Condensation Type',
-                                        #                 'key': 'condensation_type',
-                                        #                 'ui_category_key': 'Droplets',
-                                        #                 'underlying_input_type': 'menu'},
-                                        #             'key': 'Condensation Type',
-                                        #             'key_type': 'input_name'},
-                                        #         {
-                                        #             'data': {
-                                        #                 'underlying_input_default_val': False,
-                                        #                 'dependency': {
-                                        #                     'group_name': 'Condensation_V1.0',
-                                        #                     'input_name': 'Condensation',
-                                        #                     'target_type': 'GeoNode'},
-                                        #                 'underlying_input_name': 'Use Vertex Group',
-                                        #                 'key': 'use_vertex_group',
-                                        #                 'ui_category_key': 'Droplets',
-                                        #                 'underlying_input_type': 'bool'},
-                                        #             'key': 'Use Vertex Group',
-                                        #             'key_type': 'input_name'},
-                                        #         {
-                                        #             'data': {
-                                        #                 'dependency': {
-                                        #                     'group_name': 'Condensation_V1.0',
-                                        #                     'input_name': 'Condensation',
-                                        #                     'target_type': 'GeoNode'},
-                                        #                 'underlying_input_name': 'Vertex Group',
-                                        #                 'key': 'vertex_group',
-                                        #                 'ui_category_key': 'Droplets',
-                                        #                 'underlying_input_type': 'string'},
-                                        #             'key': 'Vertex Group',
-                                        #             'key_type': 'input_name'}],
-                                        #     'key': 'Condensation_V1.0',
-                                        #     'key_type': 'group_name'}
                                     ],
                                     'key': 'GeoNode',
                                     'key_type': 'target_type'}],
@@ -5911,12 +5304,6 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                 'Roughness',
                                 'Color Intensity',
                                 'Cloudiness',
-                                # 'Condensation', # condensation
-                                # 'Density',      # condensation
-                                # 'Scale',        # condensation
-                                # 'Condensation Type', # condensation
-                                # 'Use Vertex Group',  # condensation
-                                # 'Vertex Group',      # condensation
                             ]},
                         'key': 'PET',
                         'key_type': 'material/func_name'},
@@ -5942,94 +5329,11 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                     'key_type': 'target_type'},
                                 {
                                     'data': [
-                                        # {
-                                        #     'data': [
-                                        #         {
-                                        #             'data': {
-                                        #                 'underlying_input_default_val': False,
-                                        #                 'underlying_input_name': 'Condensation',
-                                        #                 'key': 'condensation',
-                                        #                 'ui_category_key': 'Droplets',
-                                        #                 'underlying_input_type': 'bool'},
-                                        #             'key': 'Condensation',
-                                        #             'key_type': 'input_name'},
-                                        #         {
-                                        #             'data': {
-                                        #                 'underlying_input_default_val': 1000,
-                                        #                 'dependency': {
-                                        #                     'group_name': 'Condensation_V1.0',
-                                        #                     'input_name': 'Condensation',
-                                        #                     'target_type': 'GeoNode'},
-                                        #                 'underlying_input_name': 'Density',
-                                        #                 'key': 'density',
-                                        #                 'ui_category_key': 'Droplets',
-                                        #                 'underlying_input_type': 'float'},
-                                        #             'key': 'Density',
-                                        #             'key_type': 'input_name'},
-                                        #         {
-                                        #             'data': {
-                                        #                 'underlying_input_default_val': 0.1,
-                                        #                 'dependency': {
-                                        #                     'group_name': 'Condensation_V1.0',
-                                        #                     'input_name': 'Condensation',
-                                        #                     'target_type': 'GeoNode'},
-                                        #                 'underlying_input_name': 'Scale',
-                                        #                 'key': 'scale',
-                                        #                 'ui_category_key': 'Droplets',
-                                        #                 'underlying_input_type': 'float'},
-                                        #             'key': 'Scale',
-                                        #             'key_type': 'input_name'},
-                                        #         {
-                                        #             'data': {
-                                        #                 'underlying_input_default_val': 'Cold Drink',
-                                        #                 'dependency': {
-                                        #                     'group_name': 'Condensation_V1.0',
-                                        #                     'input_name': 'Condensation',
-                                        #                     'target_type': 'GeoNode'},
-                                        #                 'underlying_input_name': 'Condensation Type',
-                                        #                 'key': 'condensation_type',
-                                        #                 'ui_category_key': 'Droplets',
-                                        #                 'underlying_input_type': 'menu'},
-                                        #             'key': 'Condensation Type',
-                                        #             'key_type': 'input_name'},
-                                        #         {
-                                        #             'data': {
-                                        #                 'underlying_input_default_val': False,
-                                        #                 'dependency': {
-                                        #                     'group_name': 'Condensation_V1.0',
-                                        #                     'input_name': 'Condensation',
-                                        #                     'target_type': 'GeoNode'},
-                                        #                 'underlying_input_name': 'Use Vertex Group',
-                                        #                 'key': 'use_vertex_group',
-                                        #                 'ui_category_key': 'Droplets',
-                                        #                 'underlying_input_type': 'bool'},
-                                        #             'key': 'Use Vertex Group',
-                                        #             'key_type': 'input_name'},
-                                        #         {
-                                        #             'data': {
-                                        #                 'dependency': {
-                                        #                     'group_name': 'Condensation_V1.0',
-                                        #                     'input_name': 'Condensation',
-                                        #                     'target_type': 'GeoNode'},
-                                        #                 'underlying_input_name': 'Vertex Group',
-                                        #                 'key': 'vertex_group',
-                                        #                 'ui_category_key': 'Droplets',
-                                        #                 'underlying_input_type': 'string'},
-                                        #             'key': 'Vertex Group',
-                                        #             'key_type': 'input_name'}],
-                                        #     'key': 'Condensation_V1.0',
-                                        #     'key_type': 'group_name'}
                                     ],
                                     'key': 'GeoNode',
                                     'key_type': 'target_type'}],
                             'input_order': [
                                 'Color Brightness',
-                                # 'Condensation', # condensation
-                                # 'Density',      # condensation
-                                # 'Scale',        # condensation
-                                # 'Condensation Type', # condensation
-                                # 'Use Vertex Group',  # condensation
-                                # 'Vertex Group',      # condensation
                             ]},
                         'key': 'Brown Bottle Glass',
                         'key_type': 'material/func_name'},
@@ -6055,94 +5359,11 @@ INPUT_FIELD_DATA__PRESERVING_ORDER = [
                                     'key_type': 'target_type'},
                                 {
                                     'data': [
-                                        # {
-                                        #     'data': [
-                                        #         {
-                                        #             'data': {
-                                        #                 'underlying_input_default_val': False,
-                                        #                 'underlying_input_name': 'Condensation',
-                                        #                 'key': 'condensation',
-                                        #                 'ui_category_key': 'Droplets',
-                                        #                 'underlying_input_type': 'bool'},
-                                        #             'key': 'Condensation',
-                                        #             'key_type': 'input_name'},
-                                        #         {
-                                        #             'data': {
-                                        #                 'underlying_input_default_val': 1000,
-                                        #                 'dependency': {
-                                        #                     'group_name': 'Condensation_V1.0',
-                                        #                     'input_name': 'Condensation',
-                                        #                     'target_type': 'GeoNode'},
-                                        #                 'underlying_input_name': 'Density',
-                                        #                 'key': 'density',
-                                        #                 'ui_category_key': 'Droplets',
-                                        #                 'underlying_input_type': 'float'},
-                                        #             'key': 'Density',
-                                        #             'key_type': 'input_name'},
-                                        #         {
-                                        #             'data': {
-                                        #                 'underlying_input_default_val': 0.1,
-                                        #                 'dependency': {
-                                        #                     'group_name': 'Condensation_V1.0',
-                                        #                     'input_name': 'Condensation',
-                                        #                     'target_type': 'GeoNode'},
-                                        #                 'underlying_input_name': 'Scale',
-                                        #                 'key': 'scale',
-                                        #                 'ui_category_key': 'Droplets',
-                                        #                 'underlying_input_type': 'float'},
-                                        #             'key': 'Scale',
-                                        #             'key_type': 'input_name'},
-                                        #         {
-                                        #             'data': {
-                                        #                 'underlying_input_default_val': 'Cold Drink',
-                                        #                 'dependency': {
-                                        #                     'group_name': 'Condensation_V1.0',
-                                        #                     'input_name': 'Condensation',
-                                        #                     'target_type': 'GeoNode'},
-                                        #                 'underlying_input_name': 'Condensation Type',
-                                        #                 'key': 'condensation_type',
-                                        #                 'ui_category_key': 'Droplets',
-                                        #                 'underlying_input_type': 'menu'},
-                                        #             'key': 'Condensation Type',
-                                        #             'key_type': 'input_name'},
-                                        #         {
-                                        #             'data': {
-                                        #                 'underlying_input_default_val': False,
-                                        #                 'dependency': {
-                                        #                     'group_name': 'Condensation_V1.0',
-                                        #                     'input_name': 'Condensation',
-                                        #                     'target_type': 'GeoNode'},
-                                        #                 'underlying_input_name': 'Use Vertex Group',
-                                        #                 'key': 'use_vertex_group',
-                                        #                 'ui_category_key': 'Droplets',
-                                        #                 'underlying_input_type': 'bool'},
-                                        #             'key': 'Use Vertex Group',
-                                        #             'key_type': 'input_name'},
-                                        #         {
-                                        #             'data': {
-                                        #                 'dependency': {
-                                        #                     'group_name': 'Condensation_V1.0',
-                                        #                     'input_name': 'Condensation',
-                                        #                     'target_type': 'GeoNode'},
-                                        #                 'underlying_input_name': 'Vertex Group',
-                                        #                 'key': 'vertex_group',
-                                        #                 'ui_category_key': 'Droplets',
-                                        #                 'underlying_input_type': 'string'},
-                                        #             'key': 'Vertex Group',
-                                        #             'key_type': 'input_name'}],
-                                        #     'key': 'Condensation_V1.0',
-                                        #     'key_type': 'group_name'}
                                     ],
                                     'key': 'GeoNode',
                                     'key_type': 'target_type'}],
                             'input_order': [
                                 'Color Brightness',
-                                # 'Condensation', # condensation
-                                # 'Density',      # condensation
-                                # 'Scale',        # condensation
-                                # 'Condensation Type', # condensation
-                                # 'Use Vertex Group',  # condensation
-                                # 'Vertex Group',      # condensation
                             ]},
                         'key': 'Green Bottle Glass',
                         'key_type': 'material/func_name'}],
@@ -6173,21 +5394,7 @@ with open(str(FPATHS['node_socket_data']), 'r') as f:
 
 # AUGMENTATION WITH NODE SOCKET DATA -----------------------------
 
-# for main_tab_key, main_tab_data in NODE_SOCKET_DATA.items():
-#     for library_key, library_data in main_tab_data.items():
-#         for mat_name, mat_data in library_data.items():
-#             for target_type_key, target_type_data in mat_data.items():
-#                 for group_name, group_data in target_type_data.items():
-#                     for input_name, ns_input_data in group_data.items():
-#                         socket_type = ns_input_data['socket_type']
-#                         if socket_type in socket_type_2_type_mapping.keys():
-#                             ns_input_data['type'] = socket_type_2_type_mapping[
 #                                 socket_type]
-#                         print()
-#                         print(INPUT_FIELD_DATA[main_tab_key][library_key].keys())
-#                         print()
-#                         INPUT_FIELD_DATA[main_tab_key][library_key][target_type_key][group_name][input_name][
-#                             'node_socket_data'] = ns_input_data
 
 # print()
 # print('INPUT_FIELD_DATA')
@@ -6208,20 +5415,8 @@ def get_sorting_tags(targets):
                     sorting_tags.append(sorting_tag)
     return sorting_tags
 
-# def get_sorting_tags(mat):
-#     sorting_tags = set()
-#     for target in mat['data']:
-#         for group in target['data']:
-#             sorting_tags.update(
-#                 {inpt['data']['ui_category_key'] for inpt in group['data']})
-#     return sorting_tags
 
 def filter_input_data_by_sorting_tag(lib_key, mat_name, mat_data, sorting_tag):
-    # print()
-    # print('filter_input_data_by_sorting_tag')
-    # print('mat_data:')
-    # pprint(mat_data)
-    # print()
     inputs_data = []
     targets = mat['data']['data']
     for target in targets:
@@ -6271,21 +5466,7 @@ for tab in INPUT_FIELD_DATA__PRESERVING_ORDER:
 ## ANIMATION ----------
 
 
-# def update_hooks_from_obj(obj__):
-#     hooks = []
-#     if obj__.animation_data and obj__.animation_data.action:
-#         for fcurve in obj__.animation_data.action.fcurves:
-#             hooks.append(
-#                 prop_value_update_f(obj__, fcurve.data_path))
-#     return hooks
 
-# def animation_prop_update_handler(scene):
-#     update_hooks = []
-#     for obj__ in filter(is_obj_liquifeel_asset, list(scene.objects)):
-#         update_hooks.extend(
-#             update_hooks_from_obj(obj__))
-#     for hook in update_hooks:
-#         hook()
 
 # @persistent
 # def animation_prop_update_handler(scene):
@@ -6359,31 +5540,6 @@ def reduce_input_data(inputs_data):
         if vals:
             data[new_key] = most_common(vals)
     return data
-# data_branch_key_mapping = {
-#     'underlying_input_name': 'underlying_input_name',
-#     'prop_key': 'key',
-#     'ui_category_key': 'ui_category_key',
-#     'underlying_input_type': 'type',
-#     'underlying_input_subtype': 'subtype',
-#     # 'dependency': 'dependency',
-# }
-# def reduce_input_data(inputs_data):
-#     data = {
-#         'ui_input_name': most_common(
-#             [d['name'] for d in inputs_data]),
-#         'paths': [],
-#     }
-#     for d in inputs_data:
-#         data['paths'].append(
-#             {'list': d['path'],
-#              'mapping': path_as_mapping_from_path(d['path'])})
-#     for new_key, old_key in data_branch_key_mapping.items():
-#         if old_key in d['data'].keys():
-#             data[new_key] = most_common(
-#                 [d['data'][old_key] for d in filter(
-#                     lambda d: old_key in d['data'].keys(),
-#                     inputs_data)])
-#     return data
 
 # This is a function which recurses down a dictionary hierarchy and
 # returns the leaf. If the leaf or some node is non existent, None is
@@ -6492,9 +5648,6 @@ for main_tab_key, main_tab_data in REDUX_INPUT_DATA.items():
                                 input_field_data['underlying_input_default_val']]
                     else:
                         # as of 23.03.2024, the only inputs falling
-                        # into this case are:
-                        # ['UV Name',
-                        #  'Pattern Texture; Pattern Texture Resolution; Pattern Library; User Pattern Texture']
                         # Which don't even need default setting. we
                         # won't set defaults for them.
                         pass
@@ -6602,11 +5755,6 @@ def are_user_defined_maps_present(map_category_key):
 #     return any(map(lambda im: is_user_defined_image(im, 'pattern'),
 #                    bpy.data.images))
 
-# def filter_path_by_material_name(redux_input_data, mat_name):
-#     return next(filter(
-#         lambda path: path['mapping']['material/func_name'] == mat_name,
-#         map(lambda path_: path_,
-#             redux_input_data['paths'])))
 
 def filter_path_as_mapping_by_material_name(redux_input_data, mat_name):
     return next(filter(
@@ -6728,98 +5876,25 @@ def set_geonode_mod_input(obj__, mod_name, input_name, input_type_key, value):
     else:
         geonode_input_set(mod, identifier, value)
 
-# def set_geonode_mod_input__at_prop_update(
-#         obj__, prop_parent, input_name, redux_input_data, target_attachment_key, shading_modality_key):
 #     # debug_buffer.append(redux_input_data) # DEBUG !!!
-#     if 'material/func_name' in redux_input_data['unanimous_path_elems'].keys():
 #         # ng_name = redux_input_data['paths'][0]['mapping']['group_name']
-#         ng_name = redux_input_data['unanimous_path_elems']['group_name']
-#         path = redux_input_data['paths'][0]['list']
-#     else: # It's shading input
-#         material = get_asset_material(
-#             obj__,
-#             shading_modality_key=shading_modality_key)
-#         # debug_buffer.append(
-#         #     {'obj__': obj__,
-#         #      'shading_modality_key': shading_modality_key,
-#         #      'material': material}
 #         # ) # !!! DEBUG
-#         mat_name = material['liquifeel']['name']
-#         path = filter_path_by_material_name(redux_input_data, mat_name)
-#         ng_name = path['mapping']['group_name']
-#     input_field_data = index_hierarchy_by_path(INPUT_FIELD_DATA, path)
-#     val__ = get_prop_vals(prop_parent, redux_input_data['prop_key'])
-#     mod = get_geonodes_mod_by_ng_name(obj__, ng_name)
-#     identifier = get_geonodes_field_identifier(mod, redux_input_data['underlying_input_name'])
-#     if input_data['type'] == 'color': # or <in ['vector', 'color']> but we have no vectors so far
-#         set_geonode_color_input(mod, identifier, val__)
-#     else:
 #         mod[identifier] = val__
 
 
-# def set_geonode_mod_input__at_prop_update(
-#         obj__, prop_parent, input_name, redux_input_data, target_attachment_key, shading_modality_key):
 #     # debug_buffer.append(redux_input_data) # DEBUG !!!
-#     if 'material/func_name' in redux_input_data['unanimous_path_elems'].keys():
 #         # ng_name = redux_input_data['paths'][0]['mapping']['group_name']
-#         ng_name = redux_input_data['unanimous_path_elems']['group_name']
-#     else: # It's shading input
-#         material = get_asset_material(
-#             obj__,
-#             shading_modality_key=shading_modality_key)
-#         # debug_buffer.append(
-#         #     {'obj__': obj__,
-#         #      'shading_modality_key': shading_modality_key,
-#         #      'material': material}
 #         # ) # !!! DEBUG
-#         mat_name = material['liquifeel']['name']
-#         path_as_mapping = filter_path_as_mapping_by_material_name(redux_input_data, mat_name)
-#         ng_name = path_as_mapping['group_name']
-#     val__ = get_prop_vals(prop_parent, redux_input_data['prop_key'])
-#     mod = get_geonodes_mod_by_ng_name(obj__, ng_name)
-#     identifier = get_geonodes_field_identifier(mod, redux_input_data['underlying_input_name'])
-#     if input_data['type'] == 'color': # or <in ['vector', 'color']> but we have no vectors so far
-#         set_geonode_color_input(mod, identifier, val__)
-#     else:
 #         mod[identifier] = val__
 
-# def set_shader_node_input(
-#         obj__, prop_parent, input_name, redux_input_data, material, val=None):
-#     mat_name = material['liquifeel']['name']
-#     path_as_mapping = filter_path_as_mapping_by_material_name(redux_input_data, mat_name)
-#     node_names = path_as_mapping['group_name']
 #     # This is because an input can affect multiple nodes simultaneouslty
-#     nodes = [get_material_node(material, node_name.strip()) for node_name in node_names.split(';')]
 #     # I thik that checking this edge case every time the function runs
 #     # is not ergonomic. There is a single input of this type in the
 #     # whole program and the best couse of action would be to handle it
 #     # on it's own. But i;m letting it be for now because this function
 #     # is only called for one input (pattern imgtex), because that is
 #     # the only material node input in the whole program.
-#     if input_data['underlying_input_type'] == 'imgtex':
-#         if not val:
-#             val_data = get_prop_vals(prop_parent, ["pattern_texture_resolution", "pattern_library"])
-#         else:
-#             val_data = val
-#         res_key = val_data['pattern_texture_resolution']
-#         pat_lib_key = val_data['pattern_library']
-#         if pat_lib_key == 'user_defined' and are_user_defined_patterns_present():
-#             img_key = get_prop_vals(prop_parent, "user_pattern_texture")
-#             img = bpy.data.images[img_key]
-#             img_tex_fpath = img.filepath_from_user()
-#             assign_image_to_nodes(obj__, nodes, img, img_tex_fpath)
-#         elif pat_lib_key == 'liquifeel':
-#             img_key = get_prop_vals(prop_parent, "pattern_texture")
-#             img_tex_fpath = FPATHS[
 #                 input_data['enum_source_fpath_key']][img_key][res_key]
-#             img = maybe_load_image(img_tex_fpath)
-#             assign_image_to_nodes(obj__, nodes, img, img_tex_fpath)
-#     if input_data['underlying_input_type'] == 'color':
-#         pass
-#     if input_data['underlying_input_type'] == 'vector':
-#         pass
-#     else:
-#         pass
 
 def set_shader_node_input(
         obj__, prop_parent, input_name, redux_input_data, material, val=None):
@@ -6920,27 +5995,7 @@ underlying_input_setters = {
 # def set_input_from_ui_prop_f(input_data):
 #     pass
 
-# 'int'
-# 'enum'
-# 'float'
-# 'bool'
-# 'float'
-# 'color'
-# 'bool'
-# 'string'
-# 'imgtex
 
-# setter_pack_gens = {
-#     ('int', 'int'): ,
-#     ('enum', 'enum'): ,
-#     ('float', 'float'): ,
-#     ('bool', 'bool'): ,
-#     ('bool', 'float'): ,
-#     ('color', 'color'): ,
-#     ('enum', 'bool'): ,
-#     ('enum', 'string'): ,
-#     ('enum', 'imgtex'): ,
-# }
 
 # This clojure and it's siblings should only be used on input data
 # which does present default values. There are some inputs which
@@ -6978,20 +6033,8 @@ def gen_setter__underlying_input_from_ui_prop(input_field_data, shading_modality
         setter(obj__, material, prop_parent, val, input_field_data, redux_input_data, target_attachment_key, shading_modality_key)
     return set
 
-# def gen_setter__underlying_input_from_ui_prop(input_field_data, shading_modality_key):
-#     input_name = input_field_data['ui_input_name']
-#     redux_input_data = index_hierarchy_by_path(
-#         REDUX_INPUT_DATA, input_field_data['redux_input_data_path'])
-#     target_type_name = input_field_data['path']['mapping']['target_type']
-#     prop_key = input_field_data['prop_key']
-#     setter = underlying_input_setters[target_type_name]
-#     target_attachment_key = get_target_attachment_key[target_type_name]
-#     def set(prop_parent, obj__, material):
 #         # obj__ = context.active_object
 #         # material = get_asset_material(obj__, shading_modality_key=shading_modality_key)
-#         val = getattr(prop_parent, prop_key)
-#         setter(obj__, material, prop_parent, val, input_field_data, redux_input_data, target_attachment_key, shading_modality_key)
-#     return set
 
 def gen_setter__underlying_input_to_default(input_field_data, shading_modality_key):
     input_name = input_field_data['ui_input_name']
@@ -7046,12 +6089,7 @@ for main_tab_key, main_tab_data in REDUX_INPUT_DATA.items():
 # from PIL import Image
 
 # # This has nothing to do with liquifeel at runtime, it's a development aid
-# def invert_icon(fpath):
-#     im = Image.open(fpath)
-#     arr = np.array(im)
 #     arr[:, :, :3] = (255, 255, 255)
-#     im = Image.fromarray(arr)
-#     im.save(fpath)
 
 # # This has nothing to do with liquifeel at runtime, it's a development aid
 # def invert_icons(folderpath):
@@ -7209,12 +6247,6 @@ def has_obj_geonode_mod_by_ng_name(obj__, ng_name):
     return any([discriminator(mod) for mod in list(obj__.modifiers)])
 
 # # 16_nov_2023
-# def has_geonode_mod_name_f(name):
-#     def f(mod):
-#         if mod.type == 'NODES':
-#             return mod.node_group.name == name
-#         return False
-#     return f
 
 is_mod_select_outer = has_geonode_mod_name_f(SELECT_OUTER_NG_NAME)
 is_mod_main_fill = has_geonode_mod_name_f(FILL_NG_NAME)
@@ -7235,11 +6267,6 @@ def is_material_from_liquifill_library(material, library_key):
     return v
 
 # # 16_nov_2023
-# def is_material_from_liquifill_library(material, library_key):
-#     if 'liquifeel' in material.keys():
-#         return material['liquifeel']['library'] == library_key
-#     else:
-#         return False
 
 # 21_nov_2023
 def is_obj_library_slot_shaded(obj__, library_key):
@@ -7265,11 +6292,6 @@ def is_obj_library_fill_shaded__anylib(obj__):
             material_library_items))))
 
 # # 16_nov_2023
-# def is_obj_library_slot_shaded(obj__, library_key):
-#     if obj__.data.materials:
-#         if obj__.data.materials:
-#             return any([is_material_from_liquifill_library(mat, library_key) for mat in obj__.data.materials])
-#     return False
 
 def is_obj_library_fill_shaded(obj__, library_key):
     # print('obj__', obj__)
@@ -7344,27 +6366,10 @@ def is_user_defined_image(im, image_purpose):
             return im['liquifeel']['purpose'] == image_purpose and im['liquifeel']['means'] == 'user_defined'
     return False
 # # 10_jun_2024
-# def is_user_defined_image(im, image_purpose):
-#     if im and 'liquifeel' in im.keys():
-#         v = im['liquifeel']['purpose'] == image_purpose and im['liquifeel']['means'] == 'user_defined'
-#     else:
-#         v = False
 #     # print(f'is_user_defined_pattern_image({im.name}): {v}')
-#     return v
 # # 21_nov_2023
-# def is_user_defined_pattern_image(im):
-#     if im and 'liquifeel' in im.keys():
-#         v = im['liquifeel'] == 'user_defined'
-#     else:
-#         v = False
 #     # print(f'is_user_defined_pattern_image({im.name}): {v}')
-#     return v
 # # 16_nov_2023
-# def is_user_defined_pattern_image(im):
-#     if 'liquifeel' in im.keys():
-#         return im['liquifeel'] == 'user_defined'
-#     else:
-#         return False
 
 def modifier_slot_vs_shade_discriminator_f(shading_modality_key):
     def disc__(mod):
@@ -7502,193 +6507,39 @@ def get_object_vertex_groups_items_f():
 # def gen_update_f_name(redux_input_data, tab_key, target_attachment_key):
 #     return f'{tab_key}_{target_attachment_key}_{redux_input_data["prop_key"]}_updt'
 
-# # def gen_update_f_name(redux_input_data, tab_key, target_attachment_key):
 # #     group_name_key = get_prop_key(path_as_mapping['group_name'])
 # #     target_type_key = get_prop_key(path_as_mapping['target_type'])
-# #     if isinstance(input_data['key'], list):
 # #         input_key = input_data['key'][0]
-# #     else:
 # #         input_key = input_data['key']
 # #     return f'{input_key}_{group_name_key}_{target_type_key}_updt'
 
-# def gen_update_f_code(input_name, redux_input_data, tab_key, target_attachment_key, shading_modality_key):
-#     update_code = f'''
-# @undo_push(2)
-# def {gen_update_f_name(redux_input_data, tab_key, target_attachment_key)}(slf, context):
-#     set_input__at_prop_update(
-#         slf,
-#         context,
-#         \'{input_name}\',
-#         \'{tab_key}\',
-#         \'{target_attachment_key}\',
-#         \'{shading_modality_key}\')'''
-#     return update_code
 
-# def gen_int_prop_code(input_name, redux_input_data, tab_key, target_attachment_key, shading_modality_key):
-#     # if DEV:
 #     #     pprint(redux_input_data)
-#     update_f_code = gen_update_f_code(input_name, redux_input_data, tab_key, target_attachment_key, shading_modality_key)
 #     # # I might need to use the bounds data if i want to implement sliders.
-#     bounds_data = redux_input_data['bounds']
-#     if 'underlying_input_subtype' in redux_input_data:
-#         subtype = redux_input_data['underlying_input_subtype'].upper()
-#     else:
-#         subtype = 'NONE'
-#     prop_rows = [
-#         f'    {redux_input_data["prop_key"]}: bpy.props.IntProperty(',
-#         f'        name=\'{input_name}\',',
-#         # f'        default={input_data["default_val"]},',
-#         f'        min={bounds_data["min"]},',
-#         f'        soft_min={bounds_data["min"]},',
-#         f'        max={bounds_data["max"]},',
-#         f'        soft_max={bounds_data["max"]},',
-#         f'        subtype=\'{subtype}\',',
-#         f'        update={gen_update_f_name(redux_input_data, tab_key, target_attachment_key)},',
-#         f'    )',
-#     ]
-#     prop_code = '\n'.join(prop_rows)
-#     return prop_code, update_f_code
 
 # # Apparently, for floats I've used custom functions defined
 # # classically, maybe i should implement this functionality for all
 # # types.
-# def gen_float_prop_code(input_name, redux_input_data, tab_key, target_attachment_key, shading_modality_key):
 #     # This code chunk commented below was for using custom defined
-#     # functions (functions defined manually in this file (like for
-#     # example lip_threshold_update)) as the update functions of the
-#     # synthetically defined property (synthetized by this function
-#     # (gen_float_prop_code)). input_data was not referenced before
 #     # being accessed and such, the input_data variable was containing
 #     # some residual data which didn't have the 'update_f' key in
-#     # it. If custom functions are needed, this needs to be rectified,
 #     # the redux_input_data strcture has the path to access the
 #     # required data.
-#     # if DEV:
 #     #     debug_buffer.append(redux_input_data) # DEBUG
 #     # # input_data = index_hierarchy_by_path(INPUT_FIELD_DATA, redux_input_data['paths'][0]['list'])
 #     # # print(input_data.keys()) # DEBUG
-#     # if not('update_f' in input_data.keys()):
-#     #     update_f_code = gen_update_f_code(
-#     #         input_name, redux_input_data, tab_key, target_attachment_key, shading_modality_key)
 #     #     update_func_name = gen_update_f_name(redux_input_data, tab_key, target_attachment_key)
-#     # else:
 #     #     update_f_code = []
 #     #     update_func_name = input_data['update_f']
-#     update_f_code = gen_update_f_code(
-#         input_name, redux_input_data, tab_key, target_attachment_key, shading_modality_key)
-#     # if DEV:
 #     #     pprint(redux_input_data)
-#     update_func_name = gen_update_f_name(redux_input_data, tab_key, target_attachment_key)
-#     bounds_data = redux_input_data['bounds']
-#     if 'underlying_input_subtype' in redux_input_data:
-#         subtype = redux_input_data['underlying_input_subtype'].upper()
-#     else:
-#         subtype = 'NONE'
-#     prop_rows = [
-#         f'    {redux_input_data["prop_key"]}: bpy.props.FloatProperty(',
-#         f'        name=\'{input_name}\',',
-#         f'        update={update_func_name},',
-#         # f'        default={input_data["default_val"]},',
-#         f'        min={bounds_data["min"]},',
-#         f'        soft_min={bounds_data["min"]},',
-#         f'        max={bounds_data["max"]},',
-#         f'        soft_max={bounds_data["max"]},',
-#         f'        subtype=\'{subtype}\',',
-#         f'        precision=3,',
-#         f'        step=0.1,',
-#         f'    )',
-#     ]
-#     prop_code = '\n'.join(prop_rows)
-#     return prop_code, update_f_code
 
-# def gen_bool_prop_code(input_name, redux_input_data, tab_key, target_attachment_key, shading_modality_key):
-#     update_f_code = gen_update_f_code(
-#         input_name, redux_input_data, tab_key, target_attachment_key, shading_modality_key)
-#     prop_rows = [
-#         f'    {redux_input_data["prop_key"]}: bpy.props.BoolProperty(',
-#         f'        name=\'{input_name}\',',
-#         f'        update={gen_update_f_name(redux_input_data, tab_key, target_attachment_key)},',
-#         # f'        default={input_data["default_val"]}',
-#         f'    )'
-#     ]
-#     prop_code = '\n'.join(prop_rows)
-#     return prop_code, update_f_code
 
-# def gen_vector_prop_code(input_name, redux_input_data, tab_key, target_attachment_key, shading_modality_key):
-#     update_f_code = gen_update_f_code(
-#         input_name, redux_input_data, tab_key, target_attachment_key, shading_modality_key)
-#     prop_rows = [
-#         f'    {redux_input_data["prop_key"]}: bpy.props.FloatVectorProperty(',
-#         f'        name=\'{input_name}\',',
-#         f'        update={gen_update_f_name(redux_input_data, tab_key, target_attachment_key)},',
-#         f'        min=0.0, max=1.0, soft_min=0.0, soft_max=1.0,',
-#         f'        subtype=\'XYZ\',',
-#         f'    )',
-#     ]
-#     prop_code = '\n'.join(prop_rows)
-#     return prop_code, update_f_code
 
-# def gen_color_prop_code(input_name, redux_input_data, tab_key, target_attachment_key, shading_modality_key):
-#     update_f_code = gen_update_f_code(
-#         input_name, redux_input_data, tab_key, target_attachment_key, shading_modality_key)
-#     prop_rows = [
-#         f'    {redux_input_data["prop_key"]}: bpy.props.FloatVectorProperty(',
-#         f'        name=\'{input_name}\',',
-#         f'        update={gen_update_f_name(redux_input_data, tab_key, target_attachment_key)},',
-#         # f'        default={tuple(input_data["default_val"])},',
-#         f'        min=0.0, max=1.0, soft_min=0.0, soft_max=1.0,',
-#         f'        subtype=\'COLOR\',',
-#         f'    )',
-#     ]
-#     prop_code = '\n'.join(prop_rows)
-#     return prop_code, update_f_code
 
 # # !!!
-# def gen_menu_prop_code(input_name, redux_input_data, tab_key, target_attachment_key, shading_modality_key):
-#     input_data = index_hierarchy_by_path(
-#         INPUT_FIELD_DATA, redux_input_data['paths'][0]['list'])
-#     if DEV:
-#         print()
-#         print('INPUT DATA')
-#         pprint(input_data)
-#         print()
-#         print('REDUX INPUT DATA')
-#         pprint(redux_input_data)
-#         print()
-#     update_f_code = gen_update_f_code(
-#         input_name, redux_input_data, tab_key, target_attachment_key, shading_modality_key)
-#     prop_rows = [
-#         f'    {redux_input_data["prop_key"]}: bpy.props.EnumProperty(',
-#         f'        name=\'{input_name}\',',
-#         f'        update={gen_update_f_name(redux_input_data, tab_key, target_attachment_key)},',
-#         f'        default={input_data["underlying_input_default_val"]},',
-#         f'        items={[(k, k, k) for k in input_data["items"]]},',
-#         f'    )',
-#     ]
-#     # recipient_asset: bpy.props.EnumProperty(
-#     #     name='Fill Material',
-#     #     items=recipient_asset_items)
-#     prop_code = '\n'.join(prop_rows)
-#     return prop_code, update_f_code
 
-# prop_gens_by_type = {
-#     'int': gen_int_prop_code,
-#     'float': gen_float_prop_code,
-#     'bool': gen_bool_prop_code,
-#     # 'vector': gen_vector_prop_code,
-#     # 'string': gen_string_prop_code,
-#     'color': gen_color_prop_code,
 #     'menu': gen_menu_prop_code, # !!!
-#     # 'bool_to_float': gen_bool_prop_code,
-#     # 'imgtex': gen_imgtex_props_code,
-# }
-# man_def_underlying_input_types = ['string', 'enum', 'imgtex']
 
-# def gen_prop_code(input_name, redux_input_data, tab_key, target_attachment_key, shading_modality_key):
-#     return prop_gens_by_type[redux_input_data['underlying_input_type']](
-#         input_name, redux_input_data, tab_key, target_attachment_key, shading_modality_key)
-#     # return prop_gens_by_type[redux_input_data['ui_input_type']](
-#     #     input_name, redux_input_data, tab_key, target_attachment_key, shading_modality_key)
 
 # # # The input property hierarchy follows this outline
 # # # - ObjectAttached
@@ -7706,45 +6557,25 @@ def get_object_vertex_groups_items_f():
 # # #    - Synthetic
 # # #    - Manual
 
-# # object_attached_prop_hierarchy_karte = {
 # #     # ObjectAttached_InputProps
-# #     'liquifeel_input_field_props': {
 # #         # ObjectAttached_Geometry_InputProps
-# #         'geometry': {
 # #             # ObjectAttached_Synthetic_Geometry_InputProps
-# #             'synthetic': None,
 # #             # ObjectAttached_Manual_Geometry_InputProps
 # #             'manual': None
-# #         },
 # #         # ObjectAttached_Shading_InputProps
-# #         'shading': {
 # #             # ObjectAttached_Synthetic_Shading_InputProps
-# #             'synthetic': {},
 # #             # ObjectAttached_Manual_Shading_InputProps
 # #             'manual': {}
-# #         }
-# #     }
-# # }
 
-# # material_attached_prop_hierarchy_karte = {
 # #     # MaterialAttached_InputProps
-# #     'liquifeel_input_field_props': {
 # #         # MaterialAttached_SlotShading_InputProps
-# #         'slot': {
 # #             # MaterialAttached_Synthetic_SlotShading_InputProps
-# #             'synthetic': None,
 # #             # MaterialAttached_Manual_SlotShading_InputProps
 # #             'manual': None
-# #         },
 # #         # MaterialAttached_FillShading_InputProps
-# #         'fill': {
 # #             # MaterialAttached_Synthetic_FillShading_InputProps
-# #             'synthetic': {},
 # #             # MaterialAttached_Manual_FillShading_InputProps
 # #             'manual': {}
-# #         }
-# #     }
-# # }
 
 # # The input property hierarchy follows this outline
 # # - ObjectAttached
@@ -7762,117 +6593,37 @@ def get_object_vertex_groups_items_f():
 # #    - Synthetic
 # #    - Manual
 
-# object_attached_prop_hierarchy_karte = {
 #     # ObjectAttached_InputProps
-#     'liquifeel_input_field_props': {
 #         # ObjectAttached_Geometry_InputProps
-#         'geometry': {
 #             # ObjectAttached_Synthetic_Geometry_InputProps
-#             'synthetic': None,
 #             # ObjectAttached_Manual_Geometry_InputProps
-#             'manual': None
-#         },
 #         # ObjectAttached_Shading_InputProps
-#         'shading': {
 #             # ObjectAttached_SlotShading_InputProps
-#             'slot': {
 #                 # ObjectAttached_Synthetic_SlotShading_InputProps
-#                 'synthetic': {},
 #                 # ObjectAttached_Manual_SlotShading_InputProps
-#                 'manual': {}
-#             },
 #             # ObjectAttached_FillShading_InputProps
-#             'fill': {
 #                 # ObjectAttached_Synthetic_FillShading_InputProps
-#                 'synthetic': {},
 #                 # ObjectAttached_Manual_FillShading_InputProps
-#                 'manual': {}
-#             },
-#         }
-#     }
-# }
 
-# material_attached_prop_hierarchy_karte = {
 #     # MaterialAttached_InputProps
-#     'liquifeel_input_field_props': {
 #         # MaterialAttached_SlotShading_InputProps
-#         'slot': {
 #             # MaterialAttached_Synthetic_SlotShading_InputProps
-#             'synthetic': None,
 #             # MaterialAttached_Manual_SlotShading_InputProps
-#             'manual': None
-#         },
 #         # MaterialAttached_FillShading_InputProps
-#         'fill': {
 #             # MaterialAttached_Synthetic_FillShading_InputProps
-#             'synthetic': {},
 #             # MaterialAttached_Manual_FillShading_InputProps
-#             'manual': {}
-#         }
-#     }
-# }
 
 
-# def declare_and_register_synthetic_prop_parent(
-#         main_tab_key, target_attachment_key, shading_modality_key=None):
-#     # debug_buffer.append({
-#     #     'f': 'declare_and_register_synthetic_prop_parent',
-#     #     'main_tab_key': main_tab_key,
-#     #     'target_attachment_key': target_attachment_key,
-#     #     'shading_modality_key': shading_modality_key})
-#     properties_code = []
-#     update_funcs_code = []
-#     for input_name, redux_input_data in REDUX_INPUT_DATA[main_tab_key][target_attachment_key].items():
-#         # if redux_input_data['ui_input_type'] in prop_gens_by_type.keys():
-#         if redux_input_data['underlying_input_type'] in prop_gens_by_type.keys():
-#             prop_declaration_code, update_func_declaration_code = gen_prop_code(
-#                 input_name, redux_input_data, main_tab_key, target_attachment_key, shading_modality_key)
-#             properties_code.append(prop_declaration_code)
-#             update_funcs_code.append(update_func_declaration_code)
-#     target_attachment_name = ''.join([e.capitalize() for e in target_attachment_key.split('_')])
-#     main_tab_name = main_tab_key.capitalize()
-#     code_blocks = []
-#     code_blocks.extend(update_funcs_code)
-#     lines = []
-#     if target_attachment_key == 'material_attached':
-#         shading_modality_name = shading_modality_key.capitalize()
-#         class_name = f'{target_attachment_name}_Synthetic_{shading_modality_name}Shading_InputProps'
-#     elif target_attachment_key == 'object_attached':
-#         if main_tab_key == 'geometry':
-#             class_name = f'{target_attachment_name}_Synthetic_{main_tab_key.capitalize()}_InputProps'
-#         elif main_tab_key == 'shading':
-#             shading_modality_name = shading_modality_key.capitalize()
-#             class_name = f'{target_attachment_name}_Synthetic_{shading_modality_name}Shading_InputProps'
-#     # if target_attachment_key == 'material_attached':
 #     #     shading_modality_name = shading_modality_key.capitalize()
 #     #     class_name = f'{target_attachment_name}_Synthetic_{shading_modality_name}Shading_InputProps'
-#     # elif target_attachment_key == 'object_attached':
 #     #     class_name = f'{target_attachment_name}_Synthetic_{main_tab_key.capitalize()}_InputProps'
-#     lines.append(
-#         f'\nclass {class_name}(bpy.types.PropertyGroup):')
-#     if properties_code:
-#         lines.extend(properties_code)
-#     else:
-#         lines.append('    pass')
-#         print(f'\nclass {class_name} has no properties!\n')
-#     lines.append(
 #         f'registerable_classes.append({class_name})'
-#     )
-#     prop_parent_code = "\n".join(lines)
-#     code_blocks.append(prop_parent_code)
-#     code = "\n".join(code_blocks)
 #     # # saving the synthetically generated code to file.
-#     # with open(f'{FPATHS["addon_root"]}/synthetic_properties.py', 'a') as f:
 #     #     f.write(code)
-#     cc = compile(code, '<string>', 'exec')
-#     exec(cc, globals())
 
 # # key_chain: ['liquifeel_input_field_props', 'geometry', 'synthetic']
 # # path: liquifeel_input_field_props.geometry.synthetic
 # # class ObjectAttached_Synthetic_Geometry_InputProps
-# declare_and_register_synthetic_prop_parent(
-#         'geometry', 'object_attached')
-# # class ObjectAttached_Synthetic_Geometry_InputProps(bpy.types.PropertyGroup):
 # #     pass
 # # registerable_classes.append(ObjectAttached_Synthetic_Geometry_InputProps)
 
@@ -9294,23 +8045,6 @@ def _unregister_separate_timers():
 
 # # key_chain: ['liquifeel_input_field_props', 'geometry', 'manual']
 # # path: liquifeel_input_field_props.geometry.manual
-# class ObjectAttached_Manual_Geometry_InputProps(bpy.types.PropertyGroup):
-#     opening_shape: bpy.props.EnumProperty(
-#         name='Opening Shape',
-#         update=opening_shape_mandef_update,
-#         default='straight',
-#         items=[
-#             ('straight', 'Straight', 'The mouth of the recipient has no kink.'),
-#             ('irregular', 'Irregular', 'The mouth of the recipient has a kink.')])
-#     hide_recipient: bpy.props.BoolProperty(
-#         name='Hide Recipient',
-#         update=hide_recipient_update,
-#         default=False)
-#     hide_liquid: bpy.props.BoolProperty(
-#         name='Hide Liquid',
-#         update=hide_liquid_update,
-#         default=False)
-# registerable_classes.append(ObjectAttached_Manual_Geometry_InputProps)
 
 # # key_chain: ['liquifeel_input_field_props', 'geometry']
 # # path: liquifeel_input_field_props.geometry
@@ -9322,27 +8056,18 @@ def _unregister_separate_timers():
 # # key_chain: ['liquifeel_input_field_props', 'shading', 'slot', 'synthetic']
 # # path: liquifeel_input_field_props.shading.slot.synthetic
 # # class ObjectAttached_Synthetic_SlotShading_InputProps
-# declare_and_register_synthetic_prop_parent(
-#         'shading', 'object_attached', shading_modality_key='slot')
-# # class ObjectAttached_Synthetic_SlotShading_InputProps(bpy.types.PropertyGroup):
 # #     pass
 # # registerable_classes.append(ObjectAttached_Synthetic_SlotShading_InputProps)
 
 # # key_chain: ['liquifeel_input_field_props', 'shading', 'fill', 'synthetic']
 # # path: liquifeel_input_field_props.shading.slot.synthetic
 # # class ObjectAttached_Synthetic_FillShading_InputProps
-# declare_and_register_synthetic_prop_parent(
-#         'shading', 'object_attached', shading_modality_key='fill')
-# # class ObjectAttached_Synthetic_FillShading_InputProps(bpy.types.PropertyGroup):
 # #     pass
 # # registerable_classes.append(ObjectAttached_Synthetic_FillShading_InputProps)
 
 # # # key_chain: ['liquifeel_input_field_props', 'shading', 'synthetic']
 # # # path: liquifeel_input_field_props.shading.synthetic
 # # # class ObjectAttached_Synthetic_Shading_InputProps
-# # declare_and_register_synthetic_prop_parent(
-# #         'shading', 'object_attached')
-# # # class ObjectAttached_Synthetic_Shading_InputProps(bpy.types.PropertyGroup):
 # # #     pass
 # # # registerable_classes.append(ObjectAttached_Synthetic_Shading_InputProps)
 
@@ -9398,119 +8123,22 @@ def scene_shader_items(instance, context):
 
 # # key_chain: ['liquifeel_input_field_props', 'shading', 'slot', 'manual', 'material_selector']
 # # path: liquifeel_input_field_props.shading.slot.manual.material_selector
-# class ObjectAttached_Manual_SlotShading_MatSel_InputProps(
-#         bpy.types.PropertyGroup):
-#     library: bpy.props.EnumProperty(
-#         name='Opening Shape',
-#         update=slot_library_update,
-#         default='solids',
-#         items=material_library_items)
-#     # pattern_library: bpy.props.EnumProperty(
-#     #     name='Pattern Library',
-#     #     update=pattern_library_update,
-#     #     default='liquifeel',
-#     #     items=[
-#     #         ('liquifeel', 'Liquifeel', 'Patterns packaged with Liquifeel'),
-#     #         ('user_defined', 'User Defined', 'Patterns added by the user.'),
-#     #     ])
-#     liquids_material: bpy.props.EnumProperty( # formerly library_liquids_material
-#         name='Slot Material',
-#         update=slot_shading_material_update,
-#         default='Water',
-#         items=liquids_shader_items)
-#     solids_material: bpy.props.EnumProperty( # formerly library_solids_material
-#         name='Slot Material',
-#         update=slot_shading_material_update,
-#         items=solids_shader_items)
-#     scene_material: bpy.props.EnumProperty( # formerly scene_material
-#         name='Slot Material',
-#         update=scene_slot_shading_material_update,
-#         items=scene_shader_items)
-# registerable_classes.append(
-#     ObjectAttached_Manual_SlotShading_MatSel_InputProps)
 
 # # @undo_push(2)
 # def fill_library_update(slf, context):
 #     pass
 
-# @undo_push(2)
-# def fill_shading_material_update(slf, context):
-#     obj__ = context.active_object
-#     library_key = getattr(slf, 'library')
-#     material_name = getattr(slf, f'{library_key}_material')
-#     fill_shade(context, obj__, library_key, material_name)
 
-# @undo_push(2)
-# def scene_fill_shading_material_update(slf, context):
-#     obj__ = context.active_object
-#     material_name = getattr(slf, 'scene_material')
-#     fill_shade(context, obj__, 'scene', material_name)
 
 # # key_chain: ['liquifeel_input_field_props', 'shading', 'manual', 'fill_material_selector']
 # # path: liquifeel_input_field_props.shading.manual.fill_material_selector
-# class ObjectAttached_Manual_FillShading_MatSel_InputProps(
-#         bpy.types.PropertyGroup):
-#     library: bpy.props.EnumProperty(
-#         name='Opening Shape',
-#         update=fill_library_update,
-#         default='liquids',
-#         items=material_library_items)
-#     # pattern_library: bpy.props.EnumProperty(
-#     #     name='Pattern Library',
-#     #     update=pattern_library_update,
-#     #     default='liquifeel',
-#     #     items=[
-#     #         ('liquifeel', 'Liquifeel', 'Patterns packaged with Liquifeel'),
-#     #         ('user_defined', 'User Defined', 'Patterns added by the user.'),
-#     #     ])
-#     liquids_material: bpy.props.EnumProperty( # formerly library_liquids_material
-#         name='Fill Material',
-#         update=fill_shading_material_update,
-#         default='Water',
-#         items=liquids_shader_items)
-#     solids_material: bpy.props.EnumProperty( # formerly library_solids_material
-#         name='Fill Material',
-#         update=fill_shading_material_update,
-#         items=solids_shader_items)
-#     scene_material: bpy.props.EnumProperty( # formerly scene_material
-#         name='Fill Material',
-#         update=scene_fill_shading_material_update,
-#         items=scene_shader_items)
-# registerable_classes.append(
-#     ObjectAttached_Manual_FillShading_MatSel_InputProps)
 
 # # @undo_push(2)
-# def pattern_texture_updt(slf, context):
-#     obj__ = context.active_object
 #     # It's impossible to fill a recipient with patterned glass, so we
 #     # won't put the property wielding this callback in the
 #     # MaterialAttached_Synthetic_FillShading_InputProps
 #     # structure. Thus we can hard-code the shading_modality_key.
-#     material = get_asset_material(
-#         obj__, shading_modality_key='slot')
-#     redux_input_data = index_hierarchy_by_path(
-#         REDUX_INPUT_DATA,
-#         ['shading', 'material_attached',
-#          'Pattern Texture; Pattern Texture Resolution; Pattern Library; User Pattern Texture'])
-#     path_as_mapping = redux_input_data['paths'][0]['mapping']
-#     input_data = index_hierarchy_by_path(INPUT_FIELD_DATA, redux_input_data['paths'][0]['list'])
-#     node_names = path_as_mapping['group_name']
-#     nodes = [get_material_node(material, node_name.strip()) for node_name in node_names.split(';')]
-#     val_data = get_prop_vals(slf, ["pattern_texture_resolution", "pattern_library"])
-#     res_key = val_data['pattern_texture_resolution']
-#     pat_lib_key = val_data['pattern_library']
-#     # if pat_lib_key == 'user_defined' and are_user_defined_patterns_present():
-#     if pat_lib_key == 'user_defined' and are_user_defined_maps_present('pattern'):
-#         img_key = get_prop_vals(slf, "user_pattern_texture")
-#         img = bpy.data.images[img_key]
-#         img_tex_fpath = img.filepath_from_user()
-#         assign_image_to_nodes(obj__, nodes, img, img_tex_fpath)
-#     elif pat_lib_key == 'liquifeel':
-#         img_key = get_prop_vals(slf, "pattern_texture")
-#         img_tex_fpath = FPATHS[
 #             input_data['enum_source_fpath_key']][img_key][res_key]
-#         img = maybe_load_image(img_tex_fpath)
-#         assign_image_to_nodes(obj__, nodes, img, img_tex_fpath)
 
 def hrdc_roughness_texture_updt(slf, context):
     obj__ = context.active_object
@@ -9566,54 +8194,18 @@ def hrdc_pattern_texture_updt(slf, context):
         assign_image_to_nodes(obj__, nodes, img, img_tex_fpath)
 
 # # @undo_push(2)
-# def roughness_texture_updt(slf, context):
-#     obj__ = context.active_object
 #     # Only applicable on slot shaded materials (glass)
-#     material = get_asset_material(
-#         obj__, shading_modality_key='slot')
-#     redux_input_data = index_hierarchy_by_path(
-#         REDUX_INPUT_DATA,
-#         ['shading', 'material_attached',
-#          'User Roughness Texture'])
-#     path_as_mapping = redux_input_data['paths'][0]['mapping']
-#     input_data = index_hierarchy_by_path(INPUT_FIELD_DATA, redux_input_data['paths'][0]['list'])
-#     node_names = path_as_mapping['group_name']
-#     nodes = [get_material_node(material, node_name.strip()) for node_name in node_names.split(';')]
-#     val_data = get_prop_vals(slf, ["pattern_texture_resolution", "pattern_library"])
-#     res_key = val_data['pattern_texture_resolution']
-#     pat_lib_key = val_data['pattern_library']
-#     # if pat_lib_key == 'user_defined' and are_user_defined_patterns_present():
-#     if pat_lib_key == 'user_defined' and are_user_defined_maps_present('roughness'):
-#         img_key = get_prop_vals(slf, "user_pattern_texture")
-#         img = bpy.data.images[img_key]
-#         img_tex_fpath = img.filepath_from_user()
-#         assign_image_to_nodes(obj__, nodes, img, img_tex_fpath)
-#     elif pat_lib_key == 'liquifeel':
-#         img_key = get_prop_vals(slf, "pattern_texture")
-#         img_tex_fpath = FPATHS[
 #             input_data['enum_source_fpath_key']][img_key][res_key]
-#         img = maybe_load_image(img_tex_fpath)
-#         assign_image_to_nodes(obj__, nodes, img, img_tex_fpath)
 
 # # This is one of the manually defined prop update functions. The
 # # function should be as concrete and hard-coded as possible to reduce
 # # the run-time load of logic in the body of the function. These
 # # functions are stupidly simple.
-# mapping_patternutils_updt__mapping = {'Box': True, 'UV': False}
-# def mapping_patternutils_updt(prop_parent, context):
-#     obj__ = context.active_object
 #     # # DEV CRUTCH
 #     # prop_parent = obj__.liquifeel_field_inputs.slot_shading.solids_inputs.uber_glass.geonode.patternutils
 #     # REDUX_INPUT_DATA['shading'][target_attachment_key][input_name]
-#     redux_input_data = REDUX_INPUT_DATA['shading']['object_attached']['Mapping']
-#     prop_val_data = get_prop_vals(prop_parent, redux_input_data['prop_key'])
-#     ng_name = redux_input_data['unanimous_path_elems']['group_name']
-#     mod = get_geonodes_mod_by_ng_name(obj__, ng_name) 
-#     identifier = get_geonodes_field_identifier(mod, redux_input_data['underlying_input_name'])
-#     val = mapping_patternutils_updt__mapping[prop_val_data]
 #     mod[identifier] = val
 #     # Update render view
-#     update_obj_render_view(context, obj__)
 
 # # hrdc_mapping_patternutils_updt__mapping = {'Box': True, 'UV': False}
 # # def hrdc_mapping_patternutils_updt(prop_parent, context):
@@ -9637,16 +8229,9 @@ def hrdc_pattern_texture_updt(slf, context):
 # #     # Update render view
 # #     update_obj_render_view(context, obj__)
 
-# def uv_name_patternutils_geonode_mandef_updt(prop_parent, context):
-#     obj__ = context.active_object
 #     # # DEV CRUTCH
 #     # prop_parent = obj__.liquifeel_field_inputs.slot_shading.solids_inputs.uber_glass.geonode.patternutils
 #     # REDUX_INPUT_DATA['shading'][target_attachment_key][input_name]
-#     redux_input_data = REDUX_INPUT_DATA['shading']['object_attached']['UV Name']
-#     val = get_prop_vals(prop_parent, redux_input_data['prop_key'])
-#     ng_name = redux_input_data['unanimous_path_elems']['group_name']
-#     mod = get_geonodes_mod_by_ng_name(obj__, ng_name) 
-#     identifier = get_geonodes_field_identifier(mod, redux_input_data['underlying_input_name'])
 #     mod[identifier] = val
 
 def hrdc_uv_name_patternutils_geonode_mandef_updt(prop_parent, context):
@@ -9663,16 +8248,9 @@ def hrdc_uv_name_roughnessutils_geonode_mandef_updt(prop_parent, context):
     identifier = get_geonodes_field_identifier(mod, 'UV Name')
     geonode_input_set(mod, identifier, prop_val)
 
-# def vertex_group_patternutils_geonode_mandef_updt(prop_parent, context):
-#     obj__ = context.active_object
 #     # # DEV CRUTCH
 #     # prop_parent = obj__.liquifeel_field_inputs.slot_shading.solids_inputs.uber_glass.geonode.patternutils
 #     # REDUX_INPUT_DATA['shading'][target_attachment_key][input_name]
-#     redux_input_data = REDUX_INPUT_DATA['shading']['object_attached']['Vertex Group']
-#     val = get_prop_vals(prop_parent, redux_input_data['prop_key'])
-#     ng_name = redux_input_data['unanimous_path_elems']['group_name']
-#     mod = get_geonodes_mod_by_ng_name(obj__, ng_name) 
-#     identifier = get_geonodes_field_identifier(mod, redux_input_data['underlying_input_name'])
 #     mod[identifier] = val
 
 def hrdc_vertex_group_patternutils_geonode_mandef_updt(prop_parent, context):
@@ -9689,90 +8267,19 @@ def hrdc_vertex_group_roughnessutils_geonode_mandef_updt(prop_parent, context):
     identifier = get_geonodes_field_identifier(mod, 'Vertex Group')
     geonode_input_set(mod, identifier, prop_val)
 
-# @undo_push(2)
-# def scene_slot_shading_material_update(slf, context):
-#     obj__ = context.active_object
-#     material_name = getattr(slf, 'slot_shading_scene_material')
-#     slot_shade(context, obj__, 'scene', material_name)
 
-# @undo_push(2)
-# def scene_fill_shading_material_update(slf, context):
-#     obj__ = context.active_object
-#     material_name = getattr(slf, 'fill_shading_scene_material')
-#     fill_shade(context, obj__, 'scene', material_name)
 
 # # key_chain: ['liquifeel_input_field_props', 'shading', 'slot', 'manual']
 # # path: liquifeel_input_field_props.shading.slot.manual
-# class ObjectAttached_Manual_SlotShading_InputProps(bpy.types.PropertyGroup):
-#     mapping: bpy.props.EnumProperty(
-#         name='Mapping',
-#         update=mapping_patternutils_updt,
-#         default='Box',
-#         items=[
-#             ('Box', 'Box', 'Box(True)'),
-#             ('UV', 'UV', 'UV(False)'),
-#         ])
-#     uv_name: bpy.props.EnumProperty(
-#         name='UV Name',
-#         update=uv_name_patternutils_geonode_mandef_updt,
-#         items=get_object_uv_maps_items_f())
-#     vertex_group: bpy.props.EnumProperty(
-#         name='Vertex Group',
-#         update=vertex_group_patternutils_geonode_mandef_updt,
-#         items=get_object_vertex_groups_items_f())
 #     # material selector properties
-#     material_selector: bpy.props.PointerProperty(
-#         type=ObjectAttached_Manual_SlotShading_MatSel_InputProps)
-# registerable_classes.append(ObjectAttached_Manual_SlotShading_InputProps)
 
 # # key_chain: ['liquifeel_input_field_props', 'shading', 'fill', 'manual']
 # # path: liquifeel_input_field_props.shading.fill.manual
-# class ObjectAttached_Manual_FillShading_InputProps(bpy.types.PropertyGroup):
-#     mapping: bpy.props.EnumProperty(
-#         name='Mapping',
-#         update=mapping_patternutils_updt,
-#         default='Box',
-#         items=[
-#             ('Box', 'Box', 'Box(True)'),
-#             ('UV', 'UV', 'UV(False)'),
-#         ])
-#     uv_name: bpy.props.EnumProperty(
-#         name='UV Name',
-#         update=uv_name_patternutils_geonode_mandef_updt,
-#         items=get_object_uv_maps_items_f())
-#     vertex_group: bpy.props.EnumProperty(
-#         name='Vertex Group',
-#         update=vertex_group_patternutils_geonode_mandef_updt,
-#         items=get_object_vertex_groups_items_f())
 #     # material selector properties
-#     material_selector: bpy.props.PointerProperty(
-#         type=ObjectAttached_Manual_FillShading_MatSel_InputProps)
-# registerable_classes.append(ObjectAttached_Manual_FillShading_InputProps)
 
 # # # key_chain: ['liquifeel_input_field_props', 'shading', 'manual']
 # # # path: liquifeel_input_field_props.shading.manual
-# # class ObjectAttached_Manual_Shading_InputProps(bpy.types.PropertyGroup):
-# #     mapping: bpy.props.EnumProperty(
-# #         name='Mapping',
-# #         update=mapping_patternutils_updt,
-# #         default='Box',
-# #         items=[
-# #             ('Box', 'Box', 'Box(True)'),
-# #             ('UV', 'UV', 'UV(False)'),
-# #         ])
-# #     uv_name: bpy.props.EnumProperty(
-# #         name='UV Name',
-# #         update=uv_name_patternutils_geonode_mandef_updt,
-# #         items=get_object_uv_maps_items_f())
-# #     vertex_group: bpy.props.EnumProperty(
-# #         name='Vertex Group',
-# #         update=vertex_group_patternutils_geonode_mandef_updt,
-# #         items=get_object_vertex_groups_items_f())
 # #     # material selector properties
-# #     slot_material_selector: bpy.props.PointerProperty(
-# #         type=ObjectAttached_Manual_SlotShading_MatSel_InputProps)
-# #     fill_material_selector: bpy.props.PointerProperty(
-# #         type=ObjectAttached_Manual_FillShading_MatSel_InputProps)
 # # registerable_classes.append(ObjectAttached_Manual_Shading_InputProps)
 
 # # key_chain: ['liquifeel_input_field_props', 'shading', 'slot']
@@ -9813,46 +8320,13 @@ def hrdc_vertex_group_roughnessutils_geonode_mandef_updt(prop_parent, context):
 # # key_chain: ['liquifeel_input_field_props', 'slot', 'synthetic']
 # # path: liquifeel_input_field_props.slot.synthetic
 # # class MaterialAttached_Synthetic_SlotShading_InputProps
-# declare_and_register_synthetic_prop_parent(
-#         'shading', 'material_attached', shading_modality_key='slot')
-# # class MaterialAttached_Synthetic_SlotShading_InputProps(bpy.types.PropertyGroup):
 # #     pass
 # # registerable_classes.append(MaterialAttached_Synthetic_SlotShading_InputProps)
 
 # # key_chain: ['liquifeel_input_field_props', 'slot', 'manual']
 # # path: liquifeel_input_field_props.slot.manual
-# class MaterialAttached_Manual_SlotShading_InputProps(bpy.types.PropertyGroup):
 #     # pattern properties
-#     pattern_texture: bpy.props.EnumProperty(
-#         name='Pattern Texture',
-#         update=pattern_texture_updt,
-#         items=gen_pattern_imgtex_img_items)
-#     user_pattern_texture: bpy.props.EnumProperty(
-#         name='User Pattern Texture',
-#         update=pattern_texture_updt,
-#         items=gen_pattern_user_imgtex_img_items)
-#     pattern_texture_resolution: bpy.props.EnumProperty(
-#         name='Pattern Texture Resolution',
-#         update=pattern_texture_updt,
-#         items=gen_map_imgtex_res_items)
-#     pattern_library: bpy.props.EnumProperty(
-#         name='Pattern Library',
-#         default='liquifeel',
-#         update=pattern_texture_updt,
-#         items=[
-#             ('liquifeel', 'Liquifeel', 'Patterns packaged with Liquifeel'),
-#             ('user_defined', 'User Defined', 'Patterns added by the user.'),
-#         ])
 #     # roughness map properties
-#     # user_roughness_texture: bpy.props.EnumProperty(
-#     #     name='User Roughness Texture',
-#     #     update=roughness_texture_updt,
-#     #     items=gen_roughness_user_imgtex_img_items)
-#     # roughness_texture_resolution: bpy.props.EnumProperty(
-#     #     name='Roughness Texture Resolution',
-#     #     update=roughness_texture_updt,
-#     #     items=gen_roughness_imgtex_res_items)
-# registerable_classes.append(MaterialAttached_Manual_SlotShading_InputProps)
 
 # # key_chain: ['liquifeel_input_field_props', 'slot']
 # # path: liquifeel_input_field_props.slot
@@ -9864,42 +8338,12 @@ def hrdc_vertex_group_roughnessutils_geonode_mandef_updt(prop_parent, context):
 # # key_chain: ['liquifeel_input_field_props', 'fill', 'synthetic']
 # # path: liquifeel_input_field_props.fill.synthetic
 # # class MaterialAttached_Synthetic_FillShading_InputProps
-# declare_and_register_synthetic_prop_parent(
-#         'shading', 'material_attached', shading_modality_key='fill')
-# # class MaterialAttached_Synthetic_FillShading_InputProps(bpy.types.PropertyGroup):
 # #     pass
 # # registerable_classes.append(MaterialAttached_Synthetic_FillShading_InputProps)
 
 # # key_chain: ['liquifeel_input_field_props', 'fill', 'manual']
 # # path: liquifeel_input_field_props.fill.manual
-# class MaterialAttached_Manual_FillShading_InputProps(bpy.types.PropertyGroup):
 #     # pattern properties
-#     pattern_texture: bpy.props.EnumProperty(
-#         name='Pattern Texture',
-#         update=pattern_texture_updt,
-#         items=gen_pattern_imgtex_img_items)
-#     user_pattern_texture: bpy.props.EnumProperty(
-#         name='User Pattern Texture',
-#         update=pattern_texture_updt,
-#         items=gen_pattern_user_imgtex_img_items)
-#     pattern_texture_resolution: bpy.props.EnumProperty(
-#         name='Pattern Texture Resolution',
-#         update=pattern_texture_updt,
-#         items=gen_map_imgtex_res_items)
-#     pattern_library: bpy.props.EnumProperty(
-#         name='Pattern Library',
-#         default='liquifeel',
-#         update=pattern_texture_updt,
-#         items=[
-#             ('liquifeel', 'Liquifeel', 'Patterns packaged with Liquifeel'),
-#             ('user_defined', 'User Defined', 'Patterns added by the user.'),
-#         ])
-#     # library: bpy.props.EnumProperty(
-#     #     name='Library',
-#     #     update=fill_library_update,
-#     #     default='liquids',
-#     #     items=material_library_items)
-# registerable_classes.append(MaterialAttached_Manual_FillShading_InputProps)
 
 # # key_chain: ['liquifeel_input_field_props', 'fill']
 # # path: liquifeel_input_field_props.fill
@@ -9915,14 +8359,6 @@ def hrdc_vertex_group_roughnessutils_geonode_mandef_updt(prop_parent, context):
 #     fill: bpy.props.PointerProperty(type=MaterialAttached_FillShading_InputProps)
 # registerable_classes.append(MaterialAttached_InputProps)
 
-# property_types = {
-#     'int': bpy.props.IntProperty,
-#     'float': bpy.props.FloatProperty,
-#     'bool': bpy.props.BoolProperty,
-#     'bool_to_float': bpy.props.BoolProperty,
-#     'enum': bpy.props.EnumProperty,
-#     'color': bpy.props.FloatVectorProperty,
-# }
 
 main_tab_items = []
 for n, tab_key in enumerate(MAIN_TAB_KEYS):
@@ -9956,14 +8392,6 @@ for asset_key, name_data in RECIPIENT_ASSET_NAME_DATA.items():
     ))
 
 # # KEEP
-# @undo_push(2)
-# def performance_render_mode_update(slf, context):
-#     print(
-#         f'performance_render_mode_update({slf}, context)',
-#         ':',
-#         getattr(slf, 'performance_render_mode'))
-#     adjust_render_settings(
-#         context, light=getattr(slf, 'performance_render_mode'))
 
 class LQFL_AssemblyPartItem(bpy.types.PropertyGroup):
     """One drop-target slot for an assembly part (Outliner drag / eyedropper)."""
@@ -10010,10 +8438,6 @@ class GeneralUIControls(bpy.types.PropertyGroup):
         default=False,
         update=assembly_hide_extras_update)
     # # KEEP
-    # performance_render_mode: bpy.props.BoolProperty(
-    #     name='Performance Render Mode',
-    #     update=performance_render_mode_update,
-    #     default=False)
 registerable_classes.append(GeneralUIControls)
 
 ## Messages and data
@@ -10059,55 +8483,10 @@ def hrdc_scene_fill_shading_material_update(slf, context):
 
 ## HIERARCHY -----------------------------------
 
-# @undo_push(2)
-# def hrdc__liquid_amount_updt(slf, context):
-#     set_input__at_prop_update(
-#         slf,
-#         context,
-#         'Liquid Amount',
-#         'geometry',
-#         'object_attached',
-#         'None')
 
-# @undo_push(2)
-# def hrdc__meniscus_type_updt(slf, context):
-#     set_input__at_prop_update(
-#         slf,
-#         context,
-#         'Meniscus Type',
-#         'geometry',
-#         'object_attached',
-#         'None')
 
-# @undo_push(2)
-# def hrdc__seal_container_updt(slf, context):
-#     set_input__at_prop_update(
-#         slf,
-#         context,
-#         'Seal Container',
-#         'geometry',
-#         'object_attached',
-#         'None')
 
-# @undo_push(2)
-# def hrdc__hide_recipient_updt(slf, context):
-#     set_input__at_prop_update(
-#         slf,
-#         context,
-#         'Hide Recipient',
-#         'geometry',
-#         'object_attached',
-#         'None')
 
-# @undo_push(2)
-# def hrdc__lip_threshold_updt(slf, context):
-#     set_input__at_prop_update(
-#         slf,
-#         context,
-#         'Lip Threshold',
-#         'geometry',
-#         'object_attached',
-#         'None')
 
 # key_chain: ['hrdc_liquifeel_input_field_props', 'geometry']
 # path: hrdc_liquifeel_input_field_props.geometry
@@ -10135,44 +8514,6 @@ class HRDC_ObjAttch_Geometry_InptPrps(bpy.types.PropertyGroup):
         update=separate_objects_update,
         default=False)
     # Copied from synthetically generatd code (from the obsolete execd system)
-    # liquid_amount: bpy.props.FloatProperty(
-    #     name='Liquid Amount',
-    #     update=hrdc__liquid_amount_updt,
-    #     min=1.0,
-    #     soft_min=1.0,
-    #     max=100.0,
-    #     soft_max=100.0,
-    #     subtype='PERCENTAGE',
-    #     precision=3,
-    #     step=0.1,
-    # )
-    # meniscus_type: bpy.props.EnumProperty(
-    #     name='Meniscus Type',
-    #     update=hrdc__meniscus_type_updt,
-    #     default=0,
-    #     items=[
-    #         ('Concave Meniscus', 'Concave Meniscus', 'Concave Meniscus'),
-    #         ('Convex Meniscus', 'Convex Meniscus', 'Convex Meniscus')],
-    # )
-    # seal_container: bpy.props.BoolProperty(
-    #     name='Seal Container',
-    #     update=hrdc__seal_container_updt,
-    # )
-    # hide_recipient: bpy.props.BoolProperty(
-    #     name='Hide Recipient',
-    #     update=hrdc__hide_recipient_updt,
-    # )
-    # lip_threshold: bpy.props.FloatProperty(
-    #     name='Lip Threshold',
-    #     update=hrdc__lip_threshold_updt,
-    #     min=0.0,
-    #     soft_min=0.0,
-    #     max=100.0,
-    #     soft_max=100.0,
-    #     subtype='NONE',
-    #     precision=3,
-    #     step=0.1,
-    # )
 registerable_classes.append(HRDC_ObjAttch_Geometry_InptPrps)
 
 class ObjAttch_Liq_Slt_UberLiquid(bpy.types.PropertyGroup):
@@ -11201,14 +9542,6 @@ class MatAttch_Sld_Slt_Uber_Glass(bpy.types.PropertyGroup):
             ('user_defined', 'User Defined', 'Patterns added by the user.'),
         ])
     # Obsoleted by the geonodes menu item called 'Mapping Type'
-    # pattern_mapping: bpy.props.EnumProperty( # DROP DOWN
-    #     name='Mapping',
-    #     update=hrdc_mapping_patternutils_updt,
-    #     default='Box',
-    #     items=[
-    #         ('Box', 'Box', 'Box(True)'),
-    #         ('UV', 'UV', 'UV(False)'),
-    #     ])
     pattern_uv_name: bpy.props.EnumProperty( # DROP DOWN
         name='UV Name',
         update=hrdc_uv_name_patternutils_geonode_mandef_updt,
@@ -11239,14 +9572,6 @@ class MatAttch_Sld_Slt_Uber_Glass(bpy.types.PropertyGroup):
             ('user_defined', 'User Defined', 'Roughness Maps added by the user.'),
         ])
     # Obsoleted by the geonodes menu item called 'Mapping Type'
-    # roughness_mapping: bpy.props.EnumProperty( # DROP DOWN
-    #     name='Mapping',
-    #     update=hrdc_mapping_roughnessutils_updt,
-    #     default='Box',
-    #     items=[
-    #         ('Box', 'Box', 'Box(True)'),
-    #         ('UV', 'UV', 'UV(False)'),
-    #     ])
     roughness_uv_name: bpy.props.EnumProperty( # DROP DOWN
         name='UV Name',
         update=hrdc_uv_name_roughnessutils_geonode_mandef_updt,
@@ -11396,11 +9721,6 @@ def append_recipient_asset__(context, parenting_data):
     asset_key = key_from_name(obj_name)
     glass_asset_append_fpath = FPATHS['blend_assets']
     obj__ = append_data(str(glass_asset_append_fpath), 'objects', obj_name)
-    # with bpy.data.libraries.load(str(
-    #         glass_asset_append_fpath)) as (data_from, data_to):
-    #     print(obj_name)
-    #     data_to.objects = [obj_name]
-    # obj__ = data_to.objects[0]
     context.collection.objects.link(obj__)
     obj__.location = mathutils.Vector((0, 0, 0))
     obj__.name = obj_name
@@ -11417,11 +9737,6 @@ def append_recipient_asset__(context, parenting_data):
 def append_geonode_group(node_group_name, posix_filepath):
     return append_data(posix_filepath, 'node_groups', node_group_name)
 
-# def append_geonode_group(node_group_name, posix_filepath):
-#     with bpy.data.libraries.load(str(posix_filepath)) as (data_from, data_to):
-#         data_to.node_groups = [node_group_name]
-#     ng = data_to.node_groups[0]
-#     return ng
 
 # Fill NGs that must expose Wall Overlap / Subdivision. An older copy already
 # in bpy.data (same addon version marker) would otherwise be reused by
@@ -11479,11 +9794,6 @@ def maybe_append_geonode_group(node_group_name, filepath):
             return ng__
         ng__.name = _unique_node_group_name(ng__.name + '__legacy')
     return append_geonode_group(node_group_name, filepath)
-# def maybe_append_geonode_group(node_group_name, filepath):
-#     if node_group_name in bpy.data.node_groups.keys():
-#         return bpy.data.node_groups[node_group_name]
-#     else:
-#         return append_geonode_group(node_group_name, filepath)
 
 def append_material(material_name, posix_filepath):
     return append_data(posix_filepath, 'materials', material_name)
@@ -11496,11 +9806,6 @@ def maybe_append_material(material_name, filepath):
         else:
             mat__.name += '__legacy'
     return append_material(material_name, filepath)
-# def maybe_append_material(material_name, filepath):
-#     if material_name in bpy.data.materials.keys():
-#         return bpy.data.materials[material_name]
-#     else:
-#         return append_material(material_name, filepath)
 
 
 ## FUNCTIONALITY --------------------------------------------------------------------------------
@@ -11723,35 +10028,17 @@ def maybe_install_material_auxiliary_modifiers(obj__, library_key, material_name
 
 
 def get_shader_ng_by_name(material, ng_name):
-    # print()
-    # print('material:', material)
-    # print('material.name', material.name)
-    # print('ng_name', ng_name)
-    # print()
     return next(
         filter(lambda node: ng_name in node.node_tree.name,
                filter(lambda node: node.type == 'GROUP',
                       material.node_tree.nodes)))
-# def get_shader_ng_by_name(material, ng_name):
 #     # print()
 #     # print('material:', material)
 #     # print('material.name', material.name)
 #     # print('ng_name', ng_name)
 #     # print()
-#     return next(
-#         filter(lambda ng: ng_name in ng.node_tree.name,
-#                filter(is_shader_node_group,
-#                       material.node_tree.nodes)))
 # # This is a function i developed sepparately, forgetting about the one
 # # defined previously. Maybe we'll need it, i'll leave it here for now.
-# def maybe_get_shader_ng_node_by_ng_name(mat, ng_name):
-#     try:
-#         return next(
-#             filter(lambda node: node.node_tree.name == ng_name,
-#                    filter(lambda node: node.type == 'GROUP',
-#                           mat.node_tree.nodes)))
-#     except:
-#         return None
 
 def get_shader_ng_input(ng, input_name):
     return ng.inputs[ng.inputs.find(input_name)]
@@ -11969,41 +10256,15 @@ def fill_object(context, obj__):
                 obj__, CONDENSATION_NG_NAME, get_condensation_mod_pos_index(obj__))
         assign_fill_default_vals(context, obj__)
         schedule_separate_refresh(obj__, force=True)
-# def fill_object(context, obj__):
-#     if assert_island_count_f(1)(context, obj__):
-#         make_single_user_and_apply_transforms(context, obj__)
-#         if 'liquifeel' not in obj__.keys():
-#             obj__['liquifeel'] = {}
-#         obj__['liquifeel']['fill_shading'] = {
-#             'filled': True
-#         }
-#         assign_select_outer_geonode_mod(obj__)
-#         assign_fill_geonode_mod(obj__)
-#         assign_hide_recipient_geonode_mod(obj__)
 #         # Assigning default vals
-#         for ui_input_name, redux_input_data in REDUX_INPUT_DATA['geometry']['object_attached'].items():
-#             # if DEV:
 #             #     print()
 #             #     print(f'fill_object({context}, {obj__})')
 #             #     print('ui_input_name: ', ui_input_name)
 #             #     print()
-#             input_field_data = index_hierarchy_by_path(
-#                 INPUT_FIELD_DATA, redux_input_data['paths'][0]['list'])
-#             declaration_modality_key = get_declaration_modality_key(redux_input_data)
-#             prop_key_chain = [
-#                 'liquifeel_input_field_props', 'geometry', declaration_modality_key, input_field_data['prop_key']]
 #             prop_parent, prop_key = ref_ob_key_pair(obj__, prop_key_chain)
 #             # Assigning default values for the relevant ui input props.
-#             if 'ui_prop_from_default' in input_field_data['setters'].keys():
 #                 input_field_data['setters']['ui_prop_from_default'](prop_parent)
-#             underlying_input_setters = input_field_data['setters']['per_shading_modality'][
-#                 'slot'] # Random shading_modality_key, in this case, the same update f is in both.
 #             # Setting the underlying input with the default val
-#             # if all(['underlying_from_default' in underlying_input_setters.keys(),
-#             #         declaration_modality_key == 'synthetic']):
-#             if input_field_data['ui_input_name'] == 'Liquid Amount':
-#                 underlying_input_setters['underlying_from_default'](
-#                     prop_parent, obj__, None)
 
 ## MENUS --------------------------------------------------------------------------------
 
@@ -12612,11 +10873,8 @@ def collect_node_group_deps(ng, acc):
             acc.add(sub)
             collect_node_group_deps(sub, acc)
 
-# Removes every LiquiFeel datablock from the file: modifiers, markers,
 # node groups and materials - including the nested sub-groups that the main
 # groups pull in (Liquid Boolean, Liquid Surface, ...). Those are appended
-# with a fake user, so a plain orphan-purge never reaps them; they pile up as
-# .001 / .002 copies on every re-append and travel inside the saved .blend.
 def deep_clean_liquifeel_data(context):
     removed = {'modifiers': 0, 'node_groups': 0, 'materials': 0, 'markers': 0}
     # 1. Identify the top-level LiquiFeel groups and their dependency closure.
@@ -13512,10 +11770,6 @@ def get_material(library_key, material_name):
 #     context.view_layer.update()
 
 # # This approach does not work...
-# def render_view_update(context, obj__):
-#     for area in context.screen.areas:
-#         if area.type == 'VIEW_3D':
-#             area.tag_redraw()
 
 # # Still does not work
 # def render_view_update(context, obj__):
@@ -13627,11 +11881,6 @@ registerable_classes.append(HRDC_ShadeActiveObjectViaFill)
 
 ## SLOT SHADING ---
 
-# def assign_material(obj__, material):
-#     if obj__.data.materials:
-#         obj__.data.materials[0] = material
-#     else:
-#         obj__.data.materials.append(material)
 
 # This function handles both the assignment of the underlying inputs
 # and of the properties
@@ -13647,145 +11896,49 @@ def assign_default_values_to_target_inputs(
                 redux_input_data = REDUX_INPUT_DATA[
                     main_tab_key][target_attachment_key][input_name]
                 # # We've taken out this chunk because there are no props to set default to any more.
-                # declaration_modality_key = get_declaration_modality_key(redux_input_data)
-                # prop_key_chain = get_prop_key_chain(
-                #     redux_input_data, target_attachment_key, main_tab_key,
-                #     declaration_modality_key, shading_modality_key)
-                # if target_attachment_key == 'material_attached':
-                #     top_level_prop_parent = material
-                # else: # if target_attachment_key == 'object_attached':
-                #     top_level_prop_parent = obj__
-                # prop_parent, prop_key = ref_ob_key_pair(
-                #     top_level_prop_parent, prop_key_chain)
                 # # Setting the ui prop with the default val
-                # if 'ui_prop_from_default' in input_field_data['setters'].keys():
                 #     # debug_buffer.append(input_field_data) # DEBUG !!!
-                #     input_field_data['setters']['ui_prop_from_default'](
-                #         prop_parent)
                 # Setting the underlying input with the default val
                 if 'underlying_from_default' in input_field_data['setters']['per_shading_modality'].keys():
                     input_field_data['setters']['per_shading_modality']['underlying_from_default'](
                         prop_parent, obj__, material)
-                # if target_attachment_key == 'material_attached':
-                #     set_material_attached_input__at_setup(
-                #         prop_parent, input_name,
-                #         obj__, redux_input_data, material)
-                # else: # target_attachment_key == 'object_attached':
-                #     set_geonode_mod_input__at_prop_update(
-                #         obj__, prop_parent, input_name, redux_input_data,
-                #         target_attachment_key, shading_modality_key)
 
 # # This function handles both the assignment of the underlying inputs
 # # and of the propertiesx
-# inputs_wo_default_setting_requirement = ['imgtex']
-# def assign_default_values_to_target_inputs(
-#         obj__, material, shading_modality_key, library_key, material_name):
 #     # For the old system (obsolete), few days later, i don't think it's obsolete.
-#     main_tab_key = 'shading'
-#     material_data = INPUT_FIELD_DATA[main_tab_key][library_key][material_name]
-#     for target_type_name, target_type_data in material_data.items():
-#         target_attachment_key = get_target_attachment_key[target_type_name]
-#         for group_name, group_data in target_type_data.items():
-#             for input_name, input_field_data in group_data.items():
-#                 if input_field_data['type'] not in inputs_wo_default_setting_requirement:
-#                     redux_input_data = REDUX_INPUT_DATA[
 #                         main_tab_key][target_attachment_key][input_name]
 #                     # For constructing the prop key chain used to
 #                     # access the ui property of the input in question.
-#                     declaration_modality_key = get_declaration_modality_key(redux_input_data)
-#                     prop_key_chain = get_prop_key_chain(
-#                         redux_input_data, target_attachment_key, main_tab_key,
-#                         declaration_modality_key, shading_modality_key)
-#                     if target_attachment_key == 'material_attached':
-#                         top_level_prop_parent = material
-#                     else: # if target_attachment_key == 'object_attached':
-#                         top_level_prop_parent = obj__
-#                     prop_parent, prop_key = ref_ob_key_pair(
-#                         top_level_prop_parent, prop_key_chain)
 #                     # To assign defaults to the props, We need the
 #                     # default value in the ui_input_type, not in the
 #                     # underlying_input_type, This is what the code
 #                     # below tries to accomplish.
 #                     # IT DOES NOT WORK IN ALL SITUATIONS, SOMETHING
 #                     # SMARTER (OR DUMBER) NEEDS TO BE DEVELOPED !!!
-#                     # if 'ui_to_underlying_val_mapping' in input_field_data.keys():
-#                         # default_val = next(
-#                         #     filter(lambda key_val: key_val[1] == default_val,
-#                         #            [(key, json_decoded_value_parser['bool'][val]) for key, val in input_field_data[
-#                         #                'ui_to_underlying_val_mapping'].items()]))[0]
-#                     default_val = None
-#                     if declaration_modality_key == 'synthetic':
 #                         # for the synthetically defined inputs, the
 #                         # ui_input_type and the underlying_input_type
 #                         # are both the same. There is nothing else to
 #                         # do to derive it.
-#                         default_val = input_field_data['underlying_input_default_val']
-#                     elif redux_input_data['ui_input_type'] == 'enum' and isinstance(
-#                             input_field_data['ui_to_underlying_val_mapping'], dict):
-#                         default_val = invert_dict_mapping(input_field_data['ui_to_underlying_val_mapping'])[
 #                             input_field_data['underlying_input_default_val']]
-#                         print('ui_default_val:', default_val, '; underlying_default_val:', input_field_data['underlying_input_default_val'])
-#                     # else:
 #                     #     print(f'\nNot Synthetic, input_name: {input_name}')
 #                     #     print(input_field_data)
 #                     #     print()
 #                     #     default_val = input_field_data['underlying_input_default_val']
-#                     if default_val:
 #                         # We set the prop to have our default value be
 #                         # visible in the ui too, not just in the
 #                         # underlying input.
-#                         set_prop_value(
-#                             prop_parent, prop_key, default_val, redux_input_data['ui_input_type'])
-#                         if target_attachment_key == 'material_attached':
 #                             # We set the underlying input in conformity
 #                             # with the value we set in the property.
 #                             # There is no need to pass a value to the
 #                             # function, it shall be taken from the prop.
-#                             set_material_attached_input__at_setup(
-#                                 prop_parent, input_name,
-#                                 obj__, redux_input_data, material
-#                             )
-#                         else: # target_attachment_key == 'object_attached':
 #                             # Same here
-#                             set_geonode_mod_input__at_prop_update(
-#                                 obj__, prop_parent, input_name, redux_input_data,
-#                                 target_attachment_key, shading_modality_key)
 #                         ## ------------------------------------------------------------
-#                         # prop_parent, prop_key = ref_input_field_property(
-#                         #     obj__, shading_modality_key, library_key, material_name,
-#                         #     target_type_name, group_name, input_name)
-#                         # set_input__from_data(
-#                         #     prop_parent, input_name,
-#                         #     {
-#                         #         'library': library_key,
-#                         #         'material/func_name': material_name,
-#                         #         'target_type': target_type_name,
 #                         #         'group_name': group_name
-#                         #     },
-#                         #     input_field_data,
-#                         #     shading_modality_key,
-#                         #     obj=obj__, material=material)
-#                 # if input_field_data['type'] == 'imgtex':
 #                 #     # No need to set defaults in the case of image texture properties
 #                 #     pass
-#                 # else:
-#                 #     prop_parent, prop_key = ref_input_field_property(
-#                 #         obj__, shading_modality_key, library_key, material_name, target_type_name, group_name, input_name)
-#                 #     set_input__from_data(
-#                 #         prop_parent, input_name,
-#                 #         {
-#                 #             'library': library_key,
-#                 #             'material/func_name': material_name,
-#                 #             'target_type': target_type_name,
 #                 #             'group_name': group_name
-#                 #         },
-#                 #         input_field_data,
-#                 #         shading_modality_key,
-#                 #         obj=obj__, material=material)
-#     # # For the new system (execd):
 #     # # object_attached_prop_hierarchy_karte !!!
 #     # material_attached_prop_hierarchy_karte
-#     # prop_root = 
 
 def assign_geonode_inputs_to_default_vals(obj__, mat__, target_type_data):
     # print('assign_geonode_inputs_to_default_vals()')
@@ -13794,11 +11947,6 @@ def assign_geonode_inputs_to_default_vals(obj__, mat__, target_type_data):
         mod = get_geonodes_mod_by_ng_name(obj__, group_name)
         for input_name, input_field_data in group_data.items():
             if 'underlying_input_default_val' in input_field_data.keys():
-                # print('    obj__', obj__)
-                # print('    mat__', mat__)
-                # print('    group_name', group_name)
-                # print('    input_name', input_name)
-                # print()
                 set_geonode_mod_input_to_value(
                     mod,
                     get_geonodes_field_identifier(mod, input_name), # identifier
@@ -13834,62 +11982,22 @@ def hrdc_assign_default_values_to_target_inputs(
     material_data = INPUT_FIELD_DATA[main_tab_key][library_key][material_name]
     for target_type_name, target_type_data in material_data.items():
         if target_type_name in inputs_default_setting_procedures__by_target_type.keys():
-            # print()
-            # print('hrdc_assign_default_values_to_target_inputs()')
-            # print('    obj__', obj__)
-            # print('    mat__', mat__)
-            # print('    shading_modality_key', shading_modality_key)
-            # print('    library_key', library_key)
-            # print('    material_name', material_name)
             inputs_default_setting_procedures__by_target_type[target_type_name](
                 obj__, mat__, target_type_data)
 # # This function handles both the assignment of the underlying inputs
 # # and of the properties
-# def hrdc_assign_default_values_to_target_inputs(
-#         obj__, material, shading_modality_key, library_key, material_name):
 #     # For the old system (obsolete), few days later, i don't think it's obsolete.
-#     main_tab_key = 'shading'
-#     material_data = INPUT_FIELD_DATA[main_tab_key][library_key][material_name]
-#     for target_type_name, target_type_data in material_data.items():
-#         target_attachment_key = get_target_attachment_key[target_type_name]
-#         for group_name, group_data in target_type_data.items():
-#             for input_name, input_field_data in group_data.items():
-#                 redux_input_data = REDUX_INPUT_DATA[
 #                     main_tab_key][target_attachment_key][input_name]
 #                 # # declaration_modality_key = get_declaration_modality_key(redux_input_data)
-#                 # prop_key_chain = get_prop_key_chain(
-#                 #     redux_input_data, target_attachment_key, main_tab_key,
-#                 #     declaration_modality_key, shading_modality_key)
-#                 # if target_attachment_key == 'material_attached':
 #                 #     top_level_prop_parent = material
-#                 # else: # if target_attachment_key == 'object_attached':
 #                 #     top_level_prop_parent = obj__
-#                 # prop_parent, prop_key = ref_ob_key_pair(
-#                 #     top_level_prop_parent, prop_key_chain)
 #                 # Setting the ui prop with the default val
-#                 # if 'ui_prop_from_default' in input_field_data['setters'].keys():
 #                 #     # debug_buffer.append(input_field_data) # DEBUG !!!
-#                 #     input_field_data['setters']['ui_prop_from_default'](
-#                 #         prop_parent)
 #                 # Setting the underlying input with the default val
-#                 if 'underlying_from_default' in input_field_data['setters']['per_shading_modality'].keys():
-#                     input_field_data['setters']['per_shading_modality']['underlying_from_default'](
-#                         prop_parent, obj__, material)
-#                 # if target_attachment_key == 'material_attached':
-#                 #     set_material_attached_input__at_setup(
-#                 #         prop_parent, input_name,
-#                 #         obj__, redux_input_data, material)
-#                 # else: # target_attachment_key == 'object_attached':
-#                 #     set_geonode_mod_input__at_prop_update(
-#                 #         obj__, prop_parent, input_name, redux_input_data,
-#                 #         target_attachment_key, shading_modality_key)
  
 def clear_previous_material(shading_modality_key, obj__):
-    # print(f'clear_previous_material({shading_modality_key}, obj__:{obj__.name})')
     # ID Property tagged data is used to the material name and the
     # library key of the material setup. The same information could be
-    # obtained more expensively by analyzing the object (it's material
-    # and it's modifier stack) and comparing them with the relevant
     # material data structures, but so far this approach seems
     # sufficient.
     if does_dict_have_key_path(
@@ -13968,18 +12076,8 @@ def hrdc_slot_shade(context, obj__, library_key, material_name):
         hrdc_assign_default_values_to_target_inputs(
             obj__, material, shading_modality_key, library_key, material_name)
 
-# class ShadeActiveObjectViaSlot(bpy.types.Operator):
-#     bl_idname = 'liquifeel.shade_active_object_via_slot'
-#     bl_label = 'Shade Active Object Via Slot'
-#     def execute(self, context):
-#         obj__ = context.active_object
-#         library_key, material_name = get_library_key_and_material_name(
-#             obj__, shading_modality_key='slot')
 #         # library_key = getattr(obj__.liquifeel_field_inputs.slot_shading, 'library')
 #         # material_name = getattr(obj__.liquifeel_field_inputs.slot_shading, f'library_{library_key}_material')
-#         slot_shade(context, obj__, library_key, material_name)
-#         return {'FINISHED'}
-# registerable_classes.append(ShadeActiveObjectViaSlot)
 
 class HRDC_ShadeActiveObjectViaSlot(bpy.types.Operator):
     bl_idname = 'liquifeel.hrdc_shade_active_object_via_slot'
@@ -13993,14 +12091,6 @@ class HRDC_ShadeActiveObjectViaSlot(bpy.types.Operator):
 registerable_classes.append(HRDC_ShadeActiveObjectViaSlot)
 
 # # This is not a priority, though it would be quite nice to have.
-# class LinkSlotMaterialsFromActive(bpy.types.Operator):
-#     bl_idname = f'liquifeel.link_slot_materials_from_active'
-#     bl_label = 'Link Slot Materials From Active'
-#     def execute(self, context):
-#         active_obj = context.active_object
-#         selected_objs = filter(lambda obj: not(obj == active_obj),
-#                                context.selected_objects)
-#         material = get_asset_material(active_obj, 'slot')
 
 def make_active_asset_material_single_user(context, shading_modality_key):
     obj__ = context.active_object
@@ -14189,50 +12279,12 @@ def draw_navigation_and_feedback(context, root_layout):
     tab_row.prop(
         context.scene.liquifeel_general_controls, 'main_tabs',
         expand=True, icon_only=False)
-    # tab_cycle_row = root_layout.row()
-    # split = tab_cycle_row.split(factor=LEFT_JUSTIFIED_BUTTON_SPLIT_FACTOR)
-    # feedback_row = split.row()
     # # # DEACTIVATED FOR LACK OF URLS
-    # # feedback_row.operator(
-    # #     'liquifeel.launch_feedback_form',
-    # #     text='',
-    # #     icon_value=preview_data['ids']['icons']['like'],
-    # # )
-    # # feedback_row.operator(
-    # #     'liquifeel.launch_feedback_form',
-    # #     text='',
     # #     icon_value=preview_data['ids']['icons']['dislike']
-    # # )
-    # split.operator(
-    #     'liquifeel.cycle_tabs',
-    #     text=MAIN_TAB_NAMES[getattr(context.scene.liquifeel_general_controls, 'main_tabs')])
     draw_spacing(root_layout)
 
-# def draw_navigation_and_feedback(context, root_layout):
-#     tab_row = root_layout.row()
-#     tab_row.label(
-#         text='Feeling it?')
-#     tab_row.prop(
-#         context.scene.liquifeel_general_controls, 'main_tabs',
-#         expand=True, icon_only=True)
-#     tab_cycle_row = root_layout.row()
-#     split = tab_cycle_row.split(factor=LEFT_JUSTIFIED_BUTTON_SPLIT_FACTOR)
-#     feedback_row = split.row()
 #     # # DEACTIVATED FOR LACK OF URLS
-#     # feedback_row.operator(
-#     #     'liquifeel.launch_feedback_form',
-#     #     text='',
-#     #     icon_value=preview_data['ids']['icons']['like'],
-#     # )
-#     # feedback_row.operator(
-#     #     'liquifeel.launch_feedback_form',
-#     #     text='',
 #     #     icon_value=preview_data['ids']['icons']['dislike']
-#     # )
-#     split.operator(
-#         'liquifeel.cycle_tabs',
-#         text=MAIN_TAB_NAMES[getattr(context.scene.liquifeel_general_controls, 'main_tabs')])
-#     draw_spacing(root_layout)
 
 
 def draw_filled_geometry_ui(context, root_layout):
@@ -14261,39 +12313,7 @@ def draw_filled_geometry_ui(context, root_layout):
     hrdc_draw_hide_controls(obj__, box)
     draw_clear_apply_ui(context, box)
 
-# def draw_filled_geometry_ui(context, root_layout):
-#     obj__ = context.active_object
-#     if is_asset_legacy_configured(obj__):
-#         draw_legacy_asset_configuration_message(context, root_layout)
-#     else:
-#         box = root_layout.box()
-#         prop_parent = obj__.hrdc_liquifeel_input_field_props.geometry
-#         box.prop(prop_parent, 'opening_shape', text='Opening Type')
-#         lip_threshold_row = box.row()
-#         if getattr(prop_parent, 'opening_shape') == 'irregular':
-#             draw_geonodes_mod_prop(
-#                 obj__, SELECT_OUTER_NG_NAME, 'Lip Threshold', box)
-#         draw_geonodes_mod_prop(
-#             obj__, FILL_NG_NAME, 'Liquid Level', box, text='Liquid Amount')
-#         draw_geonodes_mod_prop(
-#             obj__, FILL_NG_NAME, 'Meniscus Type', box)
-#         draw_geonodes_mod_prop(
-#             obj__, FILL_NG_NAME, 'Meniscus Scale', box)
-#         draw_geonodes_mod_prop(
-#             obj__, FILL_NG_NAME, 'Seal', box, text='Seal Container')
-#         hrdc_draw_hide_controls(obj__, box)
-#         draw_clear_apply_ui(context, box)
 
-# def draw_filled_geometry_ui(context, root_layout):
-#     obj__ = context.active_object
-#     box = root_layout.box()
-#     box.prop(obj__.liquifeel_field_inputs.fill, 'opening_shape')
-#     lip_threshold_row = box.row()
-#     if getattr(obj__.liquifeel_field_inputs.fill, 'opening_shape') == 'irregular':
-#         lip_threshold_row.prop(obj__.liquifeel_field_inputs.fill, 'lip_threshold')
-#     box.prop(obj__.liquifeel_field_inputs.fill, 'liquid_amount')
-#     box.prop(obj__.liquifeel_field_inputs.fill, 'seal_container')
-#     draw_hide_controls(obj__, box)
 #     # draw_spacing(root_layout)
 
 def draw_bake_parent_transforms_button(obj__, root_layout):
@@ -14461,25 +12481,6 @@ def _draw_geometry_ui_impl(context, root_layout):
                 icon='VIEWZOOM')
     else:
         root_layout.label(text='Please enter Object Mode.')
-# def draw_geometry_ui(context, root_layout):
-#     if is_active_selected_ob(context):
-#         obj__ = context.active_object
-#         if obj__.mode == 'OBJECT':
-#             if is_obj_filled(obj__):
-#                 draw_filled_geometry_ui(context, root_layout)
-#             else:
-#                 fill_it_row = root_layout.row()
-#                 fill_it_row.scale_y = LRG_H
-#                 fill_it_row.operator(
-#                     'liquifeel.fill_active_object',
-#                     text='Fill active',
-#                     icon_value=preview_data['ids']['icons']['geometry'],
-#                 )
-#         else:
-#             root_layout.label(text='Please enter Object Mode.')
-#     else:
-#         root_layout.label(
-#             text='Please select an object that has one mesh island!')
 
 
         # root_layout.prop(
@@ -14488,23 +12489,10 @@ def _draw_geometry_ui_impl(context, root_layout):
         #     slider=slider)
 
 
-# def get_prop_key_chain(
-#         redux_input_data, target_attachment_key, main_tab_key,
-#         declaration_modality_key, shading_modality_key):
-#     # The two property hierarchies (material attached and object
-#     # attached) do not have the same structure. In obtaining the
 #     # property hierarchy key chain (path) i'm taking advantaage of
 #     # their sole difference. This is a brittle piece of code, if we
 #     # changed the hierarchy structure, it would cease to work.
-#     if target_attachment_key == 'material_attached':
-#         hierarchy_inconsistent_key = shading_modality_key
-#     else: # target_attachment_key == 'object_attached':
-#         hierarchy_inconsistent_key = main_tab_key
-#     prop_key_chain = [
-#         'liquifeel_input_field_props',
-#         hierarchy_inconsistent_key, declaration_modality_key,
 #         redux_input_data['prop_key']]
-#     return prop_key_chain
 
 
         # root_layout.prop(
@@ -14696,14 +12684,6 @@ def draw_uber_glass_shader_controls(obj__, mat__, shading_modality_key, context,
             pattern_box.operator('liquifeel.hrdc_load_user_defined_pattern', text='Load custom pattern image')
         # # iiii : GeoNode : PatternUtils !!! : Mapping : mapping
         # # DROP DOWN
-        # row = pattern_box.row()
-        # split_row = row.split(
-        #     factor=LEFT_JUSTIFIED_BUTTON_SPLIT_FACTOR)
-        # split_row.label(text='Mapping')
-        # split_row.prop(
-        #     *ref_ob_key_pair(
-        #         mat__, prop_parent_key_chain + ['pattern_mapping']),
-        #     text='')
         draw_geonodes_mod_prop(obj__, 'PatternUtils', 'Mapping Type', pattern_box)
         # iiii : GeoNode : PatternUtils : UV Name : uv_name
         # if getattr_rec(mat__, prop_parent_key_chain + ['pattern_mapping']) == 'UV': # is mapping set to uv?
@@ -14796,14 +12776,6 @@ def draw_uber_glass_shader_controls(obj__, mat__, shading_modality_key, context,
             roughness_map_box.operator('liquifeel.hrdc_load_user_defined_roughness', text='Load custom roughness image')
         # # iiii : GeoNode : RoughnessUtils !!! : Mapping : mapping
         # # DROP DOWN
-        # row = roughness_map_box.row()
-        # split_row = row.split(
-        #     factor=LEFT_JUSTIFIED_BUTTON_SPLIT_FACTOR)
-        # split_row.label(text='Mapping')
-        # split_row.prop(
-        #     *ref_ob_key_pair(
-        #         mat__, prop_parent_key_chain + ['roughness_mapping']),
-        #     text='')
         # iiii : GeoNode : RoughnessUtils : UV Name : uv_name
         draw_geonodes_mod_prop(obj__, 'RoughnessUtils', 'Mapping Type', roughness_map_box)
         # if getattr_rec(mat__, prop_parent_key_chain + ['roughness_mapping']) == 'UV': # is mapping set to uv?
@@ -15833,12 +13805,6 @@ def hrdc_draw_shading_ui__(shading_modality_key, context, root_layout):  # !!! T
         material_picker_box.template_icon_view(
             selector_prop_parent, selector_prop_key,
             show_labels=True, scale=UI_THUMB_SCALE, scale_popup=POPUP_THUMB_SCALE)
-        # material_picker_box.label(
-        #     text=mat_name)
-        # root_layout.operator(
-        #     f'liquifeel.update_render_view',
-        #     text='Update Render View',
-        # )
         draw_high_level_material_controls(
             context, shading_modality_key, obj__, library_key, mat_name, root_layout)
         if is_obj_filled(obj__):
@@ -15905,13 +13871,6 @@ def hrdc_draw_shading_ui(context, root_layout):
         # draw_spacing(root_layout)
 
 # # Not implemented yet
-# def draw_effects_ui(context, root_layout):
-#     if is_active_selected_ob(context):
-#         pass
-#     else:
-#         root_layout.label(
-#             text='Please select an object to apply effects to.')
-#         draw_spacing(root_layout)
 
 def draw_recipients_ui(context, root_layout):
     root_layout.template_icon_view(
@@ -15974,37 +13933,14 @@ def draw_condensation_ui(context, root_layout):
     else:
         root_layout.label(
             text='Please select an object to add condensation to.')
-# def draw_condensation_ui(context, root_layout):
-#     obj__ = context.active_object
-#     if obj__:
-#         if is_obj_filled(obj__):
-#             condensation_box = root_layout.box()
 #             # iiii : Condensation : condensation : Condensation_V1.0 : GeoNode
-#             draw_geonodes_mod_prop(obj__, 'Condensation_V1.0', 'Condensation', condensation_box)
-#             if get_geonodes_mod_input_val(obj__, 'Condensation_V1.0', 'Condensation'):
 #                 # iiii : Density : density : Condensation_V1.0 : GeoNode
-#                 draw_geonodes_mod_prop(obj__, 'Condensation_V1.0', 'Density', condensation_box)
 #                 # iiii : Scale : scale : Condensation_V1.0 : GeoNode
-#                 draw_geonodes_mod_prop(obj__, 'Condensation_V1.0', 'Scale', condensation_box)
 #                 # iiii : Condensation Type : condensation_type : Condensation_V1.0 : GeoNode
-#                 draw_geonodes_mod_prop(obj__, 'Condensation_V1.0', 'Condensation Type', condensation_box)
 #                 # iiii : Use Vertex Group : use_vertex_group : Condensation_V1.0 : GeoNode
-#                 draw_geonodes_mod_prop(obj__, 'Condensation_V1.0', 'Use Vertex Group', condensation_box)
 #                 # iiii : Vertex Group : vertex_group : Condensation_V1.0 : GeoNode
-#                 draw_geonodes_mod_prop(obj__, 'Condensation_V1.0', 'Vertex Group', condensation_box)
-#         else:
-#             root_layout.label(
-#                 text='Please fill an object from the geometry tab to enable this feature.')
-#     else:
-#         root_layout.label(
-#             text='Please select a Liquifeel filled object.')
 
-# main_tab_draw_fs = {
-#     'geometry': draw_geometry_ui,
-#     'shading': draw_shading_ui,
 #     # 'effects': draw_effects_ui, # Not implemented yet
-#     'recipients': draw_recipients_ui
-# }
 
 hrdc_main_tab_draw_fs = {
     'geometry': draw_geometry_ui,
@@ -16029,69 +13965,13 @@ def draw_clear_apply_ui(context, root_layout):
             layout_operator_with_preview(
                 apply_clear_row, 'liquifeel.apply_fill',
                 text='Apply Fill', icon_key='check', fallback_icon='CHECKMARK')
-            # apply_clear_row.operator(
-            #     'liquifeel.apply_asset',
-            #     text='Apply',
-            # )
-            # draw_spacing(root_layout)
-# def draw_clear_apply_ui(context, root_layout):
-#     apply_clear_row = root_layout.row()
-#     if is_active_selected_ob(context):
-#         obj__ = context.object
-#         if is_obj_liquifeel_asset(obj__) and obj__.mode == 'OBJECT':
-#             apply_clear_row.operator(
-#                 'liquifeel.clear_asset',
-#                 text='Clear',
-#             )
-#             apply_clear_row.operator(
-#                 'liquifeel.apply_asset',
-#                 text='Apply',
-#             )
-#             draw_spacing(root_layout)
-#     apply_clear_row.operator(
-#         'liquifeel.purge_unused_data', text='Clean up')
-# def draw_clear_apply_ui(context, root_layout):
-#     if is_active_selected_ob(context):
-#         obj__ = context.object
-#         if is_obj_liquifeel_asset(obj__) and obj__.mode == 'OBJECT':
-#             apply_clear_row = root_layout.row()
-#             apply_clear_row.operator(
-#                 'liquifeel.clear_asset',
-#                 text='Clear',
-#             )
-#             apply_clear_row.operator(
-#                 'liquifeel.apply_asset',
-#                 text='Apply',
-#             )
-#             draw_spacing(root_layout)
 
 ## PANEL ---------------------
 
 # # obsoleted by draw_hrdc_main_panel
-# def draw_main_panel(panel__, context):
 #     # # KEEP
-#     # panel__.layout.prop(
-#     #     context.scene.liquifeel_general_controls, 'performance_render_mode')
-#     draw_spacing(panel__.layout)
-#     draw_navigation_and_feedback(context, panel__.layout)
 #     main_tab_draw_fs[getattr(context.scene.liquifeel_general_controls, 'main_tabs')](context, panel__.layout)
-#     draw_spacing(panel__.layout)
-#     draw_clear_apply_ui(context, panel__.layout)
-#     draw_spacing(panel__.layout)
 
-# class MainPanel(bpy.types.Panel):
-#     bl_idname = 'OBJECT_PT_liquifeel_main_panel'
-#     bl_label = 'Liquifeel'
-#     bl_space_type = 'VIEW_3D'
-#     bl_region_type = 'UI'
-#     bl_category = 'Liquifeel'
-#     def draw_header(self, context):
-#         self.layout.label(
-#             text='',
-#             icon_value=preview_data['ids']['icons']['liquifeel_purple'])
-#     def draw(self, context):
-#         draw_main_panel(self, context)
-# registerable_classes.append(MainPanel)
 
 def draw_hrdc_main_panel(panel__, context):
     draw_spacing(panel__.layout)
@@ -16210,11 +14090,6 @@ def register():
 
     bpy.types.Scene.liquifeel_general_controls = bpy.props.PointerProperty(type=GeneralUIControls)
     bpy.types.Scene.liquifeel_misc_data = bpy.props.PointerProperty(type=MiscData)
-    # bpy.types.Object.liquifeel_field_inputs = bpy.props.PointerProperty(type=FieldInputProps)
-    # bpy.types.Object.liquifeel_input_field_props = bpy.props.PointerProperty(
-    #     type=ObjectAttached_InputProps)
-    # bpy.types.Material.liquifeel_input_field_props = bpy.props.PointerProperty(
-    #     type=MaterialAttached_InputProps)
     bpy.types.Object.hrdc_liquifeel_input_field_props = bpy.props.PointerProperty(
         type=HRDC_ObjAttch_InptPrps)
     bpy.types.Material.hrdc_liquifeel_input_field_props = bpy.props.PointerProperty(
