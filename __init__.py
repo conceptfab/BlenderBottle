@@ -13154,13 +13154,6 @@ registerable_classes.append(CopyLiquifeelDiagnostics)
 
 ## OPERATORS --------------------------------------------------------------------------------
 
-class PurgeUnusedData(bpy.types.Operator):
-    bl_idname = 'liquifeel.purge_unused_data'
-    bl_label = 'Launch Feedback Form'
-    def execute(self, context):
-        unused_data_purge(context)
-        return {'FINISHED'}
-registerable_classes.append(PurgeUnusedData)
 
 class UpdateRenderView(bpy.types.Operator):
     bl_idname = 'liquifeel.update_render_view'
@@ -13170,20 +13163,6 @@ class UpdateRenderView(bpy.types.Operator):
         return {'FINISHED'}
 registerable_classes.append(UpdateRenderView)
 
-class CycleTabs(bpy.types.Operator):
-    bl_idname = 'liquifeel.cycle_tabs'
-    bl_label = 'Cycle Tabs'
-    def execute(self, context):
-        current_tab_key = getattr(context.scene.liquifeel_general_controls, 'main_tabs')
-        current_tab_index = MAIN_TAB_KEYS.index(current_tab_key)
-        if current_tab_index == len(MAIN_TAB_KEYS) - 1:
-            next_tab_index = 0
-        else:
-            next_tab_index = current_tab_index + 1
-        next_tab_key = MAIN_TAB_KEYS[next_tab_index]
-        setattr(context.scene.liquifeel_general_controls, 'main_tabs', next_tab_key)
-        return {'FINISHED'}
-registerable_classes.append(CycleTabs)
 
 class FillActive(bpy.types.Operator):
     bl_idname = 'liquifeel.fill_active_object'
@@ -13595,17 +13574,6 @@ def hrdc_load_user_defined_roughness(operator_instance, context):
         prop_parent, prop_key, fname, 'imgtex')
     assign_image_to_nodes(obj__, nodes, img, fpath)
 
-class LoadUserDefinedPattern(bpy.types.Operator):
-    bl_idname = 'liquifeel.load_user_defined_pattern'
-    bl_label = 'Load User Defined Pattern'
-    filepath: bpy.props.StringProperty(subtype='FILE_PATH')
-    def execute(self, context):
-        load_user_defined_pattern(self, context)
-        return {'FINISHED'}
-    def invoke(self, context, event):
-        invoke_file_browser(self, context, event)
-        return {'RUNNING_MODAL'}
-registerable_classes.append(LoadUserDefinedPattern)
 
 class HRDC_LoadUserDefinedPattern(bpy.types.Operator):
     bl_idname = 'liquifeel.hrdc_load_user_defined_pattern'
