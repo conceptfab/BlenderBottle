@@ -11014,6 +11014,68 @@ class DeepCleanLiquifeelData(bpy.types.Operator):
         return {'FINISHED'}
 registerable_classes.append(DeepCleanLiquifeelData)
 
+def _reset_property_group(pg):
+    """Restore every property on a PropertyGroup instance to its default."""
+    if pg is None:
+        return
+    for prop in pg.bl_rna.properties:
+        if prop.is_readonly or prop.identifier in ('rna_type', 'name'):
+            continue
+        try:
+            pg.property_unset(prop.identifier)
+        except Exception:
+            pass
+
+def reset_liquifeel_scene_settings(context):
+    """Restore the panel/scene state to its fresh-install defaults."""
+    scene = context.scene
+    try:
+        gc = scene.liquifeel_general_controls
+        try:
+            gc.assembly_parts.clear()
+        except Exception:
+            pass
+        try:
+            gc.assembly_bottle = None
+        except Exception:
+            pass
+        _reset_property_group(gc)
+    except Exception:
+        pass
+    try:
+        _reset_property_group(scene.liquifeel_misc_data)
+    except Exception:
+        pass
+    try:
+        scene.pop(SCENE_ASSEMBLY_BOTTLE_KEY, None)
+    except Exception:
+        pass
+
+class ResetLiquifeel(bpy.types.Operator):
+    bl_idname = 'liquifeel.reset_all'
+    bl_label = 'Reset LiquiFeel (Clean + Defaults)'
+    bl_description = (
+        'Full reset. Removes ALL LiquiFeel data from the file (modifiers, node\n'
+        'groups, materials, markers, leftover work-copy objects and _LiquiFeel\n'
+        'collections) AND restores the panel to its startup settings')
+    def invoke(self, context, event):
+        return context.window_manager.invoke_confirm(self, event)
+    def execute(self, context):
+        removed = deep_clean_liquifeel_data(context)
+        reset_liquifeel_scene_settings(context)
+        try:
+            sync_assembly_ui_slots(context, None)
+        except Exception:
+            pass
+        self.report(
+            {'INFO'},
+            'LiquiFeel reset to defaults. Removed: '
+            f"{removed['modifiers']} modifiers, {removed['node_groups']} node groups, "
+            f"{removed['materials']} materials, {removed['copies']} work-copy objects, "
+            f"{removed['collections']} collections.")
+        return {'FINISHED'}
+registerable_classes.append(ResetLiquifeel)
+
 def reset_liquifeel_on_object(obj__):
     base_names = (SELECT_OUTER_NG_NAME, FILL_NG_NAME,
                   HIDE_RECIPIENT_NG_NAME, CONDENSATION_NG_NAME)
@@ -14050,6 +14112,10 @@ def draw_hrdc_main_panel(panel__, context):
     draw_spacing(panel__.layout)
     # draw_clear_apply_ui(context, panel__.layout)
     draw_spacing(panel__.layout)
+    panel__.layout.operator(
+        'liquifeel.reset_all',
+        text='Reset LiquiFeel (Clean + Defaults)',
+        icon='FILE_REFRESH')
     panel__.layout.operator(
         'liquifeel.deep_clean_data',
         text='Remove All LiquiFeel Data',
