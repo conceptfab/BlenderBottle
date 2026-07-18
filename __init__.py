@@ -771,7 +771,6 @@ FPATHS['blendfs_root'] = FPATHS['data_root'] / 'blendfs'
 FPATHS['blend_assets'] = FPATHS['blendfs_root'] / 'LiquidFeel_MASTER.blend'
 
 # Filepath data for input data
-FPATHS['input_field_data'] = FPATHS['data_root'] / 'ui_control_inputs.json'
 # FPATHS['material_input_data'] = FPATHS['data_root'] / 'material_input_data.json'
 
 # Filepath data for icons
@@ -6355,11 +6354,10 @@ def reduce_input_data(inputs_data):
             {'list': d['path'],
              'mapping': path_as_mapping_from_path(d['path'])})
     for new_key, old_key in data_branch_key_mapping.items():
-        if old_key in d['data'].keys():
-            data[new_key] = most_common(
-                [d['data'][old_key] for d in filter(
-                    lambda d: old_key in d['data'].keys(),
-                    inputs_data)])
+        vals = [d['data'][old_key] for d in inputs_data
+                if old_key in d['data'].keys()]
+        if vals:
+            data[new_key] = most_common(vals)
     return data
 # data_branch_key_mapping = {
 #     'underlying_input_name': 'underlying_input_name',
@@ -15940,7 +15938,7 @@ def draw_condensation_ui(context, root_layout):
             draw_geonodes_mod_prop(obj__, 'Condensation_V1.0', 'Condensation', condensation_box)
             if not is_obj_filled(obj__):
                 condensation_box.label(
-                    text='Fill the this recipient to enable additional functionality.')
+                    text='Fill this recipient to enable additional functionality.')
             if get_geonodes_mod_input_val(obj__, 'Condensation_V1.0', 'Condensation'):
                 # iiii : GeoNode : Condensation_V1.0 : Density : density
                 draw_geonodes_mod_prop(obj__, 'Condensation_V1.0', 'Density', condensation_box)
@@ -16203,17 +16201,6 @@ if DEV:
 def get_classes():
     return registerable_classes
 
-if DEV:
-    spec = importlib.util.spec_from_file_location(
-        'repl',
-        '/home/feral/.config/blender/4.0/scripts/addons/calculusrex_repl/__init__.py')
-    repl = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(repl)
-    def repl_ns():
-        return globals()
-    dev_aux_registration = lambda: repl.register(ns=repl_ns)
-    dev_aux_unregistration = lambda: repl.unregister()
-
 def register():
     _load_preview_collections()
     classes_to_register = get_classes()
@@ -16233,11 +16220,6 @@ def register():
     bpy.types.Material.hrdc_liquifeel_input_field_props = bpy.props.PointerProperty(
         type=HRDC_MatAttch_InptPrps)
 
-    if DEV:
-        dev_aux_registration()
-
-    # # Animation
-    
 def unregister():
     _unregister_separate_timers()
     _mesh_island_count_cache.clear()
@@ -16251,9 +16233,6 @@ def unregister():
     # del bpy.types.Material.liquifeel_input_field_props
     del bpy.types.Object.hrdc_liquifeel_input_field_props
     del bpy.types.Material.hrdc_liquifeel_input_field_props
-
-    if DEV:
-        dev_aux_unregistration()
 
     _unload_preview_collections()
 
