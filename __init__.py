@@ -5590,7 +5590,7 @@ def get_sorting_tags(targets):
 
 def filter_input_data_by_sorting_tag(lib_key, mat_name, mat_data, sorting_tag):
     inputs_data = []
-    targets = mat['data']['data']
+    targets = mat_data['data']['data']
     for target in targets:
         target_key = target['key']
         for group in target['data']:
