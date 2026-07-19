@@ -14710,17 +14710,20 @@ def register():
 def unregister():
     _unregister_separate_timers()
     _mesh_island_count_cache.clear()
-    classes_to_unregister = get_classes()
-    for cls in classes_to_unregister:
-        bpy.utils.unregister_class(cls)
-    del bpy.types.Scene.liquifeel_general_controls
-    del bpy.types.Scene.liquifeel_misc_data
-    # del bpy.types.Object.liquifeel_field_inputs
-    # del bpy.types.Object.liquifeel_input_field_props
-    # del bpy.types.Material.liquifeel_input_field_props
-    del bpy.types.Object.hrdc_liquifeel_input_field_props
-    del bpy.types.Material.hrdc_liquifeel_input_field_props
-
+    for cls in reversed(get_classes()):
+        try:
+            bpy.utils.unregister_class(cls)
+        except Exception as e:
+            print(f'LIQUIFEEL: unregister_class({cls.__name__}) failed: {e}')
+    for owner, attr in (
+            (bpy.types.Scene, 'liquifeel_general_controls'),
+            (bpy.types.Scene, 'liquifeel_misc_data'),
+            (bpy.types.Object, 'hrdc_liquifeel_input_field_props'),
+            (bpy.types.Material, 'hrdc_liquifeel_input_field_props')):
+        try:
+            delattr(owner, attr)
+        except Exception as e:
+            print(f'LIQUIFEEL: removing {owner.__name__}.{attr} failed: {e}')
     _unload_preview_collections()
 
     # # Animation
