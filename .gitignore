@@ -20,3 +20,6 @@ tests/_draw_debug_out.txt
 
 # Release build output
 dist/
+
+# Git worktrees (isolated dev workspaces)
+.worktrees/
