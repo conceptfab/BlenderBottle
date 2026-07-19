@@ -12395,37 +12395,6 @@ def update_render_view(context):
         update_obj_render_view(context, obj__)
 
 # @undo_push(4)
-def fill_shade(context, obj__, library_key, material_name):
-    adjust_render_settings(context)
-    # CLEAN THE SLATE
-    clear_previous_material('fill', obj__)
-    if 'liquifeel' not in obj__.keys():
-        obj__['liquifeel'] = {
-            'version': bl_info['version']
-        }
-    obj__['liquifeel']['fill_shading'] = {
-        'library': library_key,
-        'material_name': material_name
-    }
-    if library_key == 'scene':
-        material = bpy.data.materials[material_name]
-    else:
-        material = get_material(library_key, material_name)
-        # material = get_material(library_key, material_name).copy()
-    set_geonode_mod_input(
-        obj__, FILL_NG_NAME, 'Liquid Shader', 'material', material)
-    if not(library_key == 'scene'):
-        # remove_material_auxiliary_modifiers(obj__) This would probably remove the recipient mat aux mods.
-        maybe_install_material_auxiliary_modifiers(obj__, library_key, material_name, 'fill')
-        assign_default_values_to_target_inputs(obj__, material, 'fill', library_key, material_name)
-    modifier_viewport_update_trigger(
-        context,
-        get_geonodes_mod_by_ng_name(obj__, FILL_NG_NAME))
-    update_obj_render_view(context, obj__)
-    push_liquid_material_to_proxy(obj__, material)
-    schedule_separate_refresh(obj__, force=True)
-
-# @undo_push(4)
 def hrdc_fill_shade(context, obj__, library_key, material_name):
     adjust_render_settings(context)
     # CLEAN THE SLATE
@@ -12458,17 +12427,6 @@ def hrdc_fill_shade(context, obj__, library_key, material_name):
     push_liquid_material_to_proxy(obj__, material)
     schedule_separate_refresh(obj__, force=True)
 
-class ShadeActiveObjectViaFill(bpy.types.Operator):
-    bl_idname = 'liquifeel.shade_active_object_via_fill'
-    bl_label = 'Shade Active Object Via Fill'
-    def execute(self, context):
-        obj__ = resolve_liquifeel_source_object(context.active_object)
-        library_key, material_name = get_library_key_and_material_name(
-            obj__, shading_modality_key='fill')
-        fill_shade(context, obj__, library_key, material_name)
-        return {'FINISHED'}
-registerable_classes.append(ShadeActiveObjectViaFill)
-
 class HRDC_ShadeActiveObjectViaFill(bpy.types.Operator):
     bl_idname = 'liquifeel.hrdc_shade_active_object_via_fill'
     bl_label = 'Shade Active Object Via Fill'
@@ -12482,27 +12440,6 @@ registerable_classes.append(HRDC_ShadeActiveObjectViaFill)
 
 ## SLOT SHADING ---
 
-
-# This function handles both the assignment of the underlying inputs
-# and of the properties
-def assign_default_values_to_target_inputs(
-        obj__, material, shading_modality_key, library_key, material_name):
-    # For the old system (obsolete), few days later, i don't think it's obsolete.
-    main_tab_key = 'shading'
-    material_data = INPUT_FIELD_DATA[main_tab_key][library_key][material_name]
-    for target_type_name, target_type_data in material_data.items():
-        target_attachment_key = get_target_attachment_key[target_type_name]
-        for group_name, group_data in target_type_data.items():
-            for input_name, input_field_data in group_data.items():
-                redux_input_data = REDUX_INPUT_DATA[
-                    main_tab_key][target_attachment_key][input_name]
-                # # We've taken out this chunk because there are no props to set default to any more.
-                # # Setting the ui prop with the default val
-                #     # debug_buffer.append(input_field_data) # DEBUG !!!
-                # Setting the underlying input with the default val
-                if 'underlying_from_default' in input_field_data['setters']['per_shading_modality'].keys():
-                    input_field_data['setters']['per_shading_modality']['underlying_from_default'](
-                        prop_parent, obj__, material)
 
 # # This function handles both the assignment of the underlying inputs
 # # and of the propertiesx
