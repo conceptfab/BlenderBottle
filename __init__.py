@@ -10069,9 +10069,17 @@ def get_append_name(data_from, data_category_key, name_substring):
     )[0]
 
 def append_data(posix_filepath, category_key, name_substring):
-    with bpy.data.libraries.load(str(posix_filepath)) as (data_from, data_to):
-        dat_name = get_append_name(data_from, category_key, name_substring)
-        setattr(data_to, category_key, [dat_name])
+    try:
+        with bpy.data.libraries.load(str(posix_filepath)) as (data_from, data_to):
+            dat_name = get_append_name(data_from, category_key, name_substring)
+            setattr(data_to, category_key, [dat_name])
+    except OSError as e:
+        raise RuntimeError(
+            f'LiquiFeel: cannot read asset library {posix_filepath}: {e}') from e
+    except IndexError:
+        raise RuntimeError(
+            f'LiquiFeel: no {category_key} matching {name_substring!r} in '
+            f'{posix_filepath} — addon / master-blend version mismatch?') from None
     dat = getattr(data_to, category_key)[0]
     return dat
 
