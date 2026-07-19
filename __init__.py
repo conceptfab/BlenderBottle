@@ -7462,11 +7462,46 @@ def collect_assembly_add_roots(context, controller):
     roots = [o for o in candidates if o.parent not in cand_set]
     return roots
 
+def _expand_grouping_empties(roots):
+    """Replace pure grouping empties (e.g. a NORU_* positioning rig) with their
+    non-empty descendants, so add-ons parent DIRECTLY under the bottle instead
+    of hanging off the empty. Meshes pass through unchanged. Transforms are
+    preserved downstream because clone_object_into_liquifeel_collection restores
+    each clone's world matrix from its source."""
+    out = []
+    for r in roots:
+        if r is None:
+            continue
+        if r.type == 'EMPTY':
+            stack = list(r.children)
+            found, seen = [], set()
+            while stack:
+                o = stack.pop()
+                if o is None or o in seen:
+                    continue
+                seen.add(o)
+                if o.type == 'EMPTY':
+                    stack.extend(o.children)
+                else:
+                    found.append(o)
+            # Empty with no mesh descendants: keep it (don't silently drop).
+            out.extend(found if found else [r])
+        else:
+            out.append(r)
+    deduped = []
+    for o in out:
+        if o not in deduped:
+            deduped.append(o)
+    return deduped
+
 def add_assembly_elements(controller, members):
     """Parent all member roots to bottle as additional elements (no cork/label split)."""
     if not members:
         return 0, 'No objects to add.'
     ensure_assembly_controller(controller)
+    # Flatten grouping empties so cork/label/etc. become direct children of the
+    # bottle rather than grandchildren via the empty.
+    members = _expand_grouping_empties(members)
     added = 0
     errors = []
     for member in members:
@@ -8067,6 +8102,23 @@ def move_objects_to_new_collection(context, objects, base_name):
         if obj__.name not in new_col.objects:
             new_col.objects.link(obj__)
     return new_col
+
+def move_objects_into_assembly_collection(context, controller, objects, base_name):
+    """Gather objects in the controller's EXISTING work-copy collection when it
+    has one, else create a single new collection. Prevents a second, nested
+    collection appearing when the bottle already lives in its liquifeel
+    collection (Set as Bottle created it)."""
+    existing = get_liquifeel_collection(controller)
+    if existing is None:
+        return move_objects_to_new_collection(context, objects, base_name)
+    for obj__ in objects:
+        if obj__ is None:
+            continue
+        for col in list(obj__.users_collection):
+            col.objects.unlink(obj__)
+        if obj__.name not in existing.objects:
+            existing.objects.link(obj__)
+    return existing
 
 def teardown_separate_liquid_object(context, src):
     global _separate_objects_last_sig
@@ -12049,10 +12101,11 @@ def apply_fill(context):
         mw = liquid_obj.matrix_world.copy()
         liquid_obj.parent = obj__
         liquid_obj.matrix_world = mw
-        # Bottle + liquid + assembly members in a fresh Outliner collection.
+        # Bottle + liquid + assembly members in ONE collection: reuse the
+        # bottle's existing work-copy collection instead of nesting a new one.
         assembly_members = list_assembly_member_objects(obj__)
-        move_objects_to_new_collection(
-            context,
+        move_objects_into_assembly_collection(
+            context, obj__,
             [obj__, liquid_obj] + assembly_members,
             f'{obj__.name}_LiquiFeel')
         return
@@ -14425,12 +14478,17 @@ def draw_hrdc_main_panel(panel__, context):
         text='Copy Diagnostics',
         icon='INFO')
 
+# Custom category-tab icon (the LiquiFeel logo) shown instead of the "Liquifeel"
+# text on the vertical N-panel tab. Swap for another data/icons/*.png key here.
+LIQUIFEEL_TAB_ICON_KEY = 'liquifeel_purple'
+
 class HRDC_MainPanel(bpy.types.Panel):
     bl_idname = 'OBJECT_PT_liquifeel_hrdc_main_panel'
     bl_label = 'Liquifeel'
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Liquifeel'
+    bl_icon_value = 0  # set to the logo icon id in register() (needs loaded previews)
     def draw_header(self, context):
         icon_id = preview_icon_id('liquifeel_purple')
         if icon_id:
@@ -14512,6 +14570,12 @@ def register():
     _build_solids_shader_items()
     _build_main_tab_items()
     _build_recipient_asset_items()
+    # Custom N-panel category-tab icon (Blender 5.x: bl_icon_value on the Panel).
+    # Must be set before register_class reads it, and after previews load so the
+    # icon id is valid. 0 falls back to the plain text tab.
+    _tab_icon = preview_icon_id(LIQUIFEEL_TAB_ICON_KEY)
+    if _tab_icon:
+        HRDC_MainPanel.bl_icon_value = _tab_icon
     classes_to_register = get_classes()
     for cls in classes_to_register:
         bpy.utils.register_class(cls)
