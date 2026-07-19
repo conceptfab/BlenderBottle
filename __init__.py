@@ -31,11 +31,12 @@ from .third_party.t3dn_bip import previews
 from . import geometry_diag
 
 import importlib
+# Support Blender's "Reload Scripts": re-exec the submodule so edits to
+# geometry_diag.py take effect without a Blender restart. Harmless on
+# first import (module has no side effects beyond defs).
+importlib.reload(geometry_diag)
 
 from bpy.app.handlers import persistent
-
-# import properties
-# importlib.reload(properties)
 
 registerable_classes = []
 
@@ -620,6 +621,10 @@ def count_mesh_islands_cached(obj__):
     n = count_mesh_islands(obj__)
     _mesh_island_count_cache[obj__.name] = (vert_c, edge_c, n)
     return n
+
+@persistent
+def _lqfl_clear_island_cache_on_load(_dummy):
+    _mesh_island_count_cache.clear()
 
 def get_mesh_island_vert_counts(obj__):
     graph = get_vert_graph(obj__.data.vertices, obj__.data.edges)
@@ -14507,9 +14512,15 @@ def register():
         type=HRDC_ObjAttch_InptPrps)
     bpy.types.Material.hrdc_liquifeel_input_field_props = bpy.props.PointerProperty(
         type=HRDC_MatAttch_InptPrps)
+    if _lqfl_clear_island_cache_on_load not in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.append(_lqfl_clear_island_cache_on_load)
 
 def unregister():
     _unregister_separate_timers()
+    try:
+        bpy.app.handlers.load_post.remove(_lqfl_clear_island_cache_on_load)
+    except ValueError:
+        pass
     _mesh_island_count_cache.clear()
     for cls in reversed(get_classes()):
         try:
