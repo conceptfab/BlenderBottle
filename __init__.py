@@ -5833,12 +5833,6 @@ for main_tab_key, main_tab_data in REDUX_INPUT_DATA.items():
 # We're augmenting the INPUT_FIELD_DATA structure with input setters.
 
 # Why write functions when we can write data?
-get_target_attachment_key = {
-    'Shader Node': 'material_attached',
-    'Shader NG': 'material_attached',
-    'GeoNode': 'object_attached',
-}
-
 # We're supposed to take the material from the object. The question
 # is: what do we do when the material is not in the object's material
 # slots, but instead assigned through geometry nodes?
@@ -6025,21 +6019,6 @@ def set_shader_ng_input_to_value(ng, input_name, value, underlying_input_type):
 # All of the setters below should take these params:
 # obj__, material, prop_parent, val, input_field_data, redux_input_data, target_attachment_key, shading_modality_key
 
-def set_geonode_mod_input_to_value__general_params(
-        obj__, material, prop_parent, val,
-        input_field_data, redux_input_data,
-        target_attachment_key, shading_modality_key):
-    mod = get_geonodes_mod_by_ng_name(
-        obj__, input_field_data['path']['mapping']['group_name']) 
-    identifier = get_geonodes_field_identifier(
-        mod, input_field_data['underlying_input_name'])
-    if input_field_data['ui_input_type'] != input_field_data['underlying_input_type']:
-        val = input_field_data['ui_to_underlying_val_mapping'][val]
-    set_geonode_mod_input_to_value(
-        mod, identifier, val, input_field_data['underlying_input_type'])
-    # set_geonode_mod_input_to_value(
-    #     mod, identifier, val, input_field_data['underlying_input_type'], input_field_data)
-
 def set_geonode_mod_input(obj__, mod_name, input_name, input_type_key, value):
     mod = get_geonodes_modifier__by_mod_name(obj__, mod_name)
     identifier = get_geonodes_field_identifier(mod, input_name)
@@ -6068,44 +6047,6 @@ def set_geonode_mod_input(obj__, mod_name, input_name, input_type_key, value):
 #     # the only material node input in the whole program.
 #                 input_data['enum_source_fpath_key']][img_key][res_key]
 
-def set_shader_node_input(
-        obj__, prop_parent, input_name, redux_input_data, material, val=None):
-    mat_name = material['liquifeel']['name']
-    path_as_mapping = filter_path_as_mapping_by_material_name(redux_input_data, mat_name)
-    node_names = path_as_mapping['group_name']
-    # This is because an input can affect multiple nodes simultaneouslty
-    nodes = [get_material_node(material, node_name.strip()) for node_name in node_names.split(';')]
-    # I thik that checking this edge case every time the function runs
-    # is not ergonomic. There is a single input of this type in the
-    # whole program and the best couse of action would be to handle it
-    # on it's own. But i;m letting it be for now because this function
-    # is only called for one input (pattern imgtex), because that is
-    # the only material node input in the whole program.
-    if input_data['underlying_input_type'] == 'imgtex':
-        if not val:
-            val_data = get_prop_vals(prop_parent, ["pattern_texture_resolution", "pattern_library"])
-        else:
-            val_data = val
-        res_key = val_data['pattern_texture_resolution']
-        pat_lib_key = val_data['pattern_library']
-        # if pat_lib_key == 'user_defined' and are_user_defined_patterns_present():
-        if pat_lib_key == 'user_defined' and are_user_defined_maps_present('pattern'):
-            img_key = get_prop_vals(prop_parent, "user_pattern_texture")
-            img = bpy.data.images[img_key]
-            img_tex_fpath = img.filepath_from_user()
-            assign_image_to_nodes(obj__, nodes, img, img_tex_fpath)
-        elif pat_lib_key == 'liquifeel':
-            img_key = get_prop_vals(prop_parent, "pattern_texture")
-            img_tex_fpath = FPATHS[
-                input_data['enum_source_fpath_key']][img_key][res_key]
-            img = maybe_load_image(img_tex_fpath)
-            assign_image_to_nodes(obj__, nodes, img, img_tex_fpath)
-    if input_data['underlying_input_type'] == 'color':
-        pass
-    if input_data['underlying_input_type'] == 'vector':
-        pass
-    else:
-        pass
 
 
 
@@ -6120,36 +6061,6 @@ def set_shader_node_input(
     # is set (either from it's corresponding slot or fill prop) the
     # same input should be altered regardless.
 
-
-def set_shader_ng_input_to_value__general_params(
-        obj__, material, prop_parent, val,
-        input_field_data, redux_input_data,
-        target_attachment_key, shading_modality_key):
-    mat_name = material['liquifeel']['name']
-    ng_name = input_field_data['path']['mapping']['group_name']
-    ng = get_shader_ng_by_name(material, ng_name)
-    field_name = redux_input_data['underlying_input_name']
-    underlying_type = redux_input_data['underlying_input_type']
-    if input_field_data['ui_input_type'] != input_field_data['underlying_input_type']:
-        val = input_field_data['ui_to_underlying_val_mapping'][val]
-    if underlying_type == 'color' or underlying_type == 'vector':
-        for i in range(len(val_data)):
-            ng.inputs[field_name].default_value[i] = val_data[i]
-    else:
-        ng.inputs[field_name].default_value = val_data
-
-def set_shader_node_input_to_value__general_params(
-        obj__, material, prop_parent, val,
-        input_field_data, redux_input_data,
-        target_attachment_key, shading_modality_key):
-    set_shader_node_input(
-        obj__, prop_parent, input_field_data['ui_input_name'], redux_input_data, material, val=val)
-
-underlying_input_setters = {
-    'GeoNode': set_geonode_mod_input_to_value__general_params,
-    'Shader NG': set_shader_ng_input_to_value__general_params,
-    'Shader Node': set_shader_node_input_to_value__general_params,
-}
 
 # GEONODE ^
 # SHADER_NODE v
@@ -6172,84 +6083,12 @@ underlying_input_setters = {
 # This clojure and it's siblings should only be used on input data
 # which does present default values. There are some inputs which
 # don't.
-def gen_setter__ui_prop_from_default_val(input_field_data):
-    if input_field_data['ui_input_default_val'] in ['vector', 'color']:
-        setter = set_vectorial_prop_value
-    else:
-        setter = set_scalar_prop_value
-    default_val = input_field_data['ui_input_default_val']
-    prop_key = input_field_data['prop_key']
-    def set(prop_parent):
-        setter(prop_parent, prop_key, default_val)
-    return set
-
 # geonode:     obj__, prop_parent, input_name, redux_input_data, target_attachment_key, shading_modality_key
 # shader_node: obj__, prop_parent, input_name, redux_input_data, target_attachment_key, shading_modality_key
 # shader_ng:   obj__, prop_parent, input_name, redux_input_data, target_attachment_key, shading_modality_key
 
 # Actually, i don't think i need these
 # below. gen_setter__ui_prop_from_default_val was the critical one.
-
-def gen_setter__underlying_input_from_ui_prop(input_field_data, shading_modality_key):
-    input_name = input_field_data['ui_input_name']
-    redux_input_data = index_hierarchy_by_path(
-        REDUX_INPUT_DATA, input_field_data['redux_input_data_path'])
-    target_type_name = input_field_data['path']['mapping']['target_type']
-    prop_key = input_field_data['prop_key']
-    setter = underlying_input_setters[target_type_name]
-    target_attachment_key = get_target_attachment_key[target_type_name]
-    def set(prop_parent, context):
-        obj__ = context.active_object
-        material = get_asset_material(obj__, shading_modality_key=shading_modality_key)
-        val = getattr(prop_parent, prop_key)
-        setter(obj__, material, prop_parent, val, input_field_data, redux_input_data, target_attachment_key, shading_modality_key)
-    return set
-
-#         # obj__ = context.active_object
-#         # material = get_asset_material(obj__, shading_modality_key=shading_modality_key)
-
-def gen_setter__underlying_input_to_default(input_field_data, shading_modality_key):
-    input_name = input_field_data['ui_input_name']
-    redux_input_data = index_hierarchy_by_path(
-        REDUX_INPUT_DATA, input_field_data['redux_input_data_path'])
-    target_type_name = input_field_data['path']['mapping']['target_type']
-    prop_key = input_field_data['prop_key']
-    setter = underlying_input_setters[target_type_name]
-    target_attachment_key = get_target_attachment_key[target_type_name]
-    val = input_field_data['underlying_input_default_val']
-    def set(prop_parent, obj__, material):
-        # obj__ = context.active_object
-        # material = get_asset_material(obj__, shading_modality_key=shading_modality_key)
-        setter(obj__, material, prop_parent, val, input_field_data, redux_input_data, target_attachment_key, shading_modality_key)
-    return set
-
-input_types_wo_default_ui_prop_setter = ['imgtex']
-def gen_input_setters(input_field_data):
-    setters = {}
-    if 'ui_input_default_val' in input_field_data.keys() and input_field_data[
-            'ui_input_default_val'] not in input_types_wo_default_ui_prop_setter:
-        ui_prop_from_default_setter = gen_setter__ui_prop_from_default_val(
-            input_field_data)
-        setters['ui_prop_from_default'] = ui_prop_from_default_setter
-    per_shading_modality = {'slot': {}, 'fill': {}}
-    for shading_modality_key in ['slot', 'fill']:
-        underlying_from_ui_prop_setter = gen_setter__underlying_input_from_ui_prop(
-            input_field_data, shading_modality_key)
-        per_shading_modality[shading_modality_key]['underlying_from_ui_prop'] = underlying_from_ui_prop_setter
-        if 'underlying_input_default_val' in input_field_data.keys():
-            underlying_to_default_setter = gen_setter__underlying_input_to_default(
-                input_field_data, shading_modality_key)
-            per_shading_modality[shading_modality_key]['underlying_from_default'] = underlying_to_default_setter
-    setters['per_shading_modality'] = per_shading_modality
-    return setters
-
-for main_tab_key, main_tab_data in REDUX_INPUT_DATA.items():
-    for target_attachment_key, target_attachment_data in main_tab_data.items():
-        for input_name, redux_input_data in target_attachment_data.items():
-            for path in [p['list'] for p in redux_input_data['paths']]:
-                # augment INPUT_FIELD_DATA at path with setters
-                input_field_data = index_hierarchy_by_path(INPUT_FIELD_DATA, path)
-                input_field_data['setters'] = gen_input_setters(input_field_data)
 
 #!# MANAGERS --------------------------------------------------------------------------------
 ## DYNAMIC DATA --------------------------------------------------------------------------------
