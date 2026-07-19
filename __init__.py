@@ -8810,6 +8810,8 @@ registerable_classes.append(MiscData)
 @undo_push(2)
 def hrdc_slot_shading_material_update(slf, context):
     obj__ = resolve_liquifeel_source_object(context.active_object)
+    if obj__ is None:
+        return
     library_key = getattr(slf, 'library')
     material_name = getattr(slf, f'{library_key}_material')
     hrdc_slot_shade(context, obj__, library_key, material_name)
@@ -8826,6 +8828,8 @@ def hrdc_fill_shading_material_update(slf, context):
 @undo_push(2)
 def hrdc_scene_slot_shading_material_update(slf, context):
     obj__ = resolve_liquifeel_source_object(context.active_object)
+    if obj__ is None:
+        return
     material_name = getattr(slf, 'scene_material')
     hrdc_slot_shade(context, obj__, 'scene', material_name)
 
