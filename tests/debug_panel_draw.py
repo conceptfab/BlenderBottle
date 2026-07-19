@@ -1,10 +1,20 @@
-"""Reproduce Liquifeel Geometry panel draw crash."""
+"""Reproduce Liquifeel Geometry panel draw crash (against the WORKING TREE)."""
 import sys
 import traceback
-import bpy
-import addon_utils
+from pathlib import Path
 
-addon_utils.enable('liquifeel', default_set=True, persistent=True)
+import bpy
+
+ADDON_DIR = Path(__file__).resolve().parents[1]
+parent = str(ADDON_DIR.parent)
+if parent not in sys.path:
+    sys.path.insert(0, parent)
+import LiquiFeel
+try:
+    LiquiFeel.unregister()
+except Exception:
+    pass
+LiquiFeel.register()
 
 bpy.ops.mesh.primitive_cube_add()
 obj = bpy.context.active_object
@@ -16,7 +26,7 @@ class LQFL_MT_debug(bpy.types.Menu):
     bl_idname = 'LQFL_MT_debug_draw'
 
     def draw(self, context):
-        import liquifeel as m
+        import LiquiFeel as m
         print('MENU DRAW START', flush=True)
         try:
             m.draw_assembly_ui(context, self.layout, None, context.active_object)
@@ -54,7 +64,7 @@ cork = bpy.data.objects.new('500_korek', None)
 bpy.context.collection.objects.link(cork)
 
 print('is_active_selected', flush=True)
-import liquifeel as m
+import LiquiFeel as m
 print('has island?', m.has_obj_single_mesh_island(obj), flush=True)
 print('is_active_selected_ob', m.is_active_selected_ob(bpy.context), flush=True)
 
