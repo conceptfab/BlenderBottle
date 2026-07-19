@@ -16,6 +16,10 @@ GEOMETRY_DIAG_NG_NAME = 'LiquiFeel_GeometryDiag'
 GEOMETRY_DIAG_ATTR = 'LQFL_Diag'
 GEOMETRY_DIAG_VERSION = 1
 
+# Blender 5.x: geometry-nodes modifier inputs moved from id properties
+# (mod[identifier]) to mod.properties.inputs.<identifier>.value.
+GEONODE_INPUTS_VIA_PROPERTIES = 'properties' in bpy.types.NodesModifier.bl_rna.properties
+
 # Real-world wall thickness band (millimetres), scaled via mesh unit factor.
 THICKNESS_MIN_MM = 0.5
 THICKNESS_MAX_MM = 15.0
@@ -318,11 +322,16 @@ def assign_geometry_diag_modifier(obj__, rim_radius):
         for item in ng.interface.items_tree:
             if getattr(item, 'name', None) == 'Rim Radius' and getattr(item, 'in_out', None) == 'INPUT':
                 key = item.identifier
-                if key in mod:
+                if GEONODE_INPUTS_VIA_PROPERTIES:
+                    getattr(mod.properties.inputs, key).value = float(rim_radius)
+                    # writing .value does not tag the depsgraph
+                    mod.id_data.update_tag()
+                else:
                     mod[key] = float(rim_radius)
                 break
-    except Exception:
-        pass
+    except Exception as e:
+        # A failed write must be visible — a silent no-op caused this bug.
+        print(f'LiquiFeel geometry_diag: Rim Radius write failed: {e}')
     return mod
 
 

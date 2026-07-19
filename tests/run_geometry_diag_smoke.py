@@ -140,6 +140,26 @@ def main():
     else:
         fail('Diagnostic node group missing')
 
+    # 3b) Rim Radius socket must actually be written (regression:
+    # silently ignored on Blender 5.2 via the id-prop path).
+    mod_ = geometry_diag.assign_geometry_diag_modifier(shell, rim_radius=0.5)
+    rim_item = None
+    for it in mod_.node_group.interface.items_tree:
+        if getattr(it, 'name', None) == 'Rim Radius' and getattr(it, 'in_out', None) == 'INPUT':
+            rim_item = it
+            break
+    if rim_item is None:
+        fail('Diag NG lacks a Rim Radius input socket')
+    else:
+        if hasattr(mod_, 'properties'):
+            rim_val = getattr(mod_.properties.inputs, rim_item.identifier).value
+        else:
+            rim_val = mod_[rim_item.identifier]
+        if abs(float(rim_val) - 0.5) < 1e-6:
+            ok('Rim Radius socket applied (0.5)')
+        else:
+            fail(f'Rim Radius socket not applied: {rim_val!r} != 0.5')
+
     assert bpy.ops.liquifeel.toggle_geometry_diag() == {'FINISHED'}
     if not geometry_diag.has_geometry_diag_modifier(shell):
         ok('Preview Diag removed modifier')
