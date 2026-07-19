@@ -533,7 +533,7 @@ def adjust_render_settings(context, light=False):
 def getattr_rec(obj__, attr_key_path):
     try:
         return ft.reduce(getattr, attr_key_path, obj__)
-    except:
+    except Exception:
         return None
 
 # obsolet, old system, now we use REDUX_INPUT_DATA and it has a
@@ -997,8 +997,15 @@ recipient_asset_namess = [
 # # manual rename operation data
 # # : [(THUMBNAIL_NAME, PREVIEW_NAME)]
 
-with open(str(FPATHS['recipient_asset_parenting_data']), 'r') as f:
-    RECIPIENT_ASSET_PARENTING_DATA = json.load(f)
+def _load_bundled_json(fpath):
+    try:
+        with open(str(fpath), 'r') as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        raise RuntimeError(
+            f'LiquiFeel: bundled data file missing or broken: {fpath} ({e})') from e
+
+RECIPIENT_ASSET_PARENTING_DATA = _load_bundled_json(FPATHS['recipient_asset_parenting_data'])
 RECIPIENT_ASSET_NAME_DATA = {}
 
 # print()
@@ -5566,8 +5573,7 @@ INPUT_FIELD_DATA = lose_order__(INPUT_FIELD_DATA__PRESERVING_ORDER)
 socket_type_2_type_mapping = {'NodeSocketFloat': 'float',
                               'NodeSocketInt': 'int'}
 
-with open(str(FPATHS['node_socket_data']), 'r') as f:
-    NODE_SOCKET_DATA = json.load(f)
+NODE_SOCKET_DATA = _load_bundled_json(FPATHS['node_socket_data'])
 
 # AUGMENTATION WITH NODE SOCKET DATA -----------------------------
 
@@ -5578,8 +5584,7 @@ with open(str(FPATHS['node_socket_data']), 'r') as f:
 # pprint(INPUT_FIELD_DATA)
 # print()
 
-with open(str(FPATHS['input_ui_type_data']), 'r') as f:
-    INPUT_UI_TYPE_DATA = json.load(f)
+INPUT_UI_TYPE_DATA = _load_bundled_json(FPATHS['input_ui_type_data'])
 
 # !!! This probably needs to be changed to conserve the sorting_tag box category order in the input field ui
 def get_sorting_tags(targets):
@@ -6344,7 +6349,7 @@ def has_lqfl_data_structure_attached(mod):
     try:
         v = 'liquifeel' in mod.node_group.keys()
         return v
-    except:
+    except Exception:
         return False
 
 def is_mod_shader_aux__fs(prev_mat_library_key, prev_mat_name):
@@ -8304,7 +8309,12 @@ def _build_solids_shader_items():
         ))
 _build_solids_shader_items()
 
+_scene_shader_items_cache = []
+
 def scene_shader_items(instance, context):
+    # Blender does not keep references to dynamic enum item strings;
+    # cache the last list so the strings stay alive.
+    global _scene_shader_items_cache
     try:
         items = []
         for mat in bpy.data.materials:
@@ -8315,9 +8325,10 @@ def scene_shader_items(instance, context):
                 mat.name, mat.name, mat.name,
                 icon_val, len(items)
             ))
+        _scene_shader_items_cache = items
         return items
-    except:
-        return []
+    except Exception:
+        return _scene_shader_items_cache
 
 # @undo_push(2)
 
