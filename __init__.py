@@ -8273,28 +8273,31 @@ material_library_items = [
 ]
 
 liquids_shader_items = []
-for mat_name in INPUT_FIELD_DATA['shading']['liquids'].keys():
-    liquids_shader_items.append((
-        mat_name, mat_name,
-        mat_name,
-        # json.dumps(INPUT_FIELD_DATA['shading']['liquids'][mat_name],
-        #            indent=2, sort_keys=True),
-        preview_data['ids']['material_thumbnails'][
-            key_from_name(mat_name)],
-        len(liquids_shader_items)
-    ))
+def _build_liquids_shader_items():
+    """(Re)build in place — preview icon ids change on every addon re-enable."""
+    liquids_shader_items.clear()
+    for mat_name in INPUT_FIELD_DATA['shading']['liquids'].keys():
+        liquids_shader_items.append((
+            mat_name, mat_name,
+            mat_name,
+            preview_data['ids']['material_thumbnails'][
+                key_from_name(mat_name)],
+            len(liquids_shader_items)
+        ))
+_build_liquids_shader_items()
 
 solids_shader_items = []
-for mat_name in INPUT_FIELD_DATA['shading']['solids'].keys():
-    solids_shader_items.append((
-        mat_name, mat_name,
-        mat_name,
-        # json.dumps(INPUT_FIELD_DATA['shading']['solids'][mat_name],
-        #            indent=2, sort_keys=True),
-        preview_data['ids']['material_thumbnails'][
-            key_from_name(mat_name)],
-        len(solids_shader_items)
-    ))
+def _build_solids_shader_items():
+    solids_shader_items.clear()
+    for mat_name in INPUT_FIELD_DATA['shading']['solids'].keys():
+        solids_shader_items.append((
+            mat_name, mat_name,
+            mat_name,
+            preview_data['ids']['material_thumbnails'][
+                key_from_name(mat_name)],
+            len(solids_shader_items)
+        ))
+_build_solids_shader_items()
 
 def scene_shader_items(instance, context):
     try:
@@ -8556,19 +8559,22 @@ def hrdc_vertex_group_roughnessutils_geonode_mandef_updt(prop_parent, context):
 
 
 main_tab_items = []
-for n, tab_key in enumerate(MAIN_TAB_KEYS):
-    if tab_key in MAIN_TAB_BUILTIN_ICONS.keys():
-        icon_key = MAIN_TAB_BUILTIN_ICONS[tab_key]
-    else:
-        icon_key = preview_data['ids']['icons'][tab_key]
-    name = MAIN_TAB_NAMES[tab_key]
-    main_tab_items.append((
-        tab_key, # key
-        name, # name
-        name, # description
-        icon_key, # icon
-        n # position
-    ))
+def _build_main_tab_items():
+    main_tab_items.clear()
+    for n, tab_key in enumerate(MAIN_TAB_KEYS):
+        if tab_key in MAIN_TAB_BUILTIN_ICONS.keys():
+            icon_key = MAIN_TAB_BUILTIN_ICONS[tab_key]
+        else:
+            icon_key = preview_data['ids']['icons'][tab_key]
+        name = MAIN_TAB_NAMES[tab_key]
+        main_tab_items.append((
+            tab_key, # key
+            name, # name
+            name, # description
+            icon_key, # icon
+            n # position
+        ))
+_build_main_tab_items()
 
 shading_target_items = [
     ('recipient', 'to Recipient',
@@ -8578,13 +8584,16 @@ shading_target_items = [
 ]
 
 recipient_asset_items = []
-for asset_key, name_data in RECIPIENT_ASSET_NAME_DATA.items():
-    recipient_asset_items.append((
-        asset_key,
-        RECIPIENT_ASSET_NAME_DATA[asset_key]['thumbnail'], RECIPIENT_ASSET_NAME_DATA[asset_key]['thumbnail'],
-        preview_data['ids']['recipient_asset_thumbnails'][asset_key],
-        len(recipient_asset_items)
-    ))
+def _build_recipient_asset_items():
+    recipient_asset_items.clear()
+    for asset_key, name_data in RECIPIENT_ASSET_NAME_DATA.items():
+        recipient_asset_items.append((
+            asset_key,
+            name_data['thumbnail'], name_data['thumbnail'],
+            preview_data['ids']['recipient_asset_thumbnails'][asset_key],
+            len(recipient_asset_items)
+        ))
+_build_recipient_asset_items()
 
 # # KEEP
 
@@ -14483,6 +14492,10 @@ def get_classes():
 
 def register():
     _load_preview_collections()
+    _build_liquids_shader_items()
+    _build_solids_shader_items()
+    _build_main_tab_items()
+    _build_recipient_asset_items()
     classes_to_register = get_classes()
     for cls in classes_to_register:
         bpy.utils.register_class(cls)
