@@ -12583,7 +12583,7 @@ class ExtractMigrationTagData(bpy.types.Operator):
     bl_idname = 'liquifeel.extract_migration_tag_data'
     bl_label = 'Extract Migration Tag Data'
     def execute(self, context):
-        pprint(extract_migration_tag_data(context.active_object))
+        pprint(extract_legacy_asset_tag_data(context.active_object))
         return {'FINISHED'}
 if DEV:
     registerable_classes.append(ExtractMigrationTagData)    
